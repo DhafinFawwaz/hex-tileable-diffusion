@@ -1,0 +1,12 @@
+.venv
+.mypy_cache
+.cache
+demos
+
+
+
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[codz]
+*$py.class

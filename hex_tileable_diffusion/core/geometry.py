@@ -1,0 +1,82 @@
+import numpy as np
+from .constant import ONE_DIV_SQRT3, SQRT3, SQRT3_DIV_2
+from typing import Union
+import numpy.typing as npt
+
+def _pixel_to_hex(px: np.ndarray, py: np.ndarray, R: float) -> tuple[np.ndarray, np.ndarray]:
+    q = (ONE_DIV_SQRT3 * px - (1/3) * py) / R
+    r = ((2/3) * py) / R
+    return q, r
+
+
+def _hex_to_pixel(q: np.ndarray, r: np.ndarray, R: float) -> tuple[np.ndarray, np.ndarray]:
+    x = R * (SQRT3 * q + SQRT3_DIV_2 * r)
+    y = R * 1.5 * r
+    return x, y
+
+def _cube_round(fq: np.ndarray, fr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    fs = -fq - fr
+
+    rq = np.round(fq)
+    rr = np.round(fr)
+    rs = np.round(fs)
+    
+    dq = np.abs(rq - fq)
+    dr = np.abs(rr - fr)
+    ds = np.abs(rs - fs)
+
+    mask_q = (dq > dr) & (dq > ds)
+    mask_r = (~mask_q) & (dr > ds)
+
+    rq = np.where(mask_q, -rr - rs, rq)
+    rr = np.where(mask_r, -rq - rs, rr)
+    return rq, rr
+
+
+def _hex_sdf(px: np.ndarray, py: np.ndarray, r_inscribed: float) -> np.ndarray:
+    qx = np.abs(px)
+    qy = np.abs(py)
+    return np.maximum(qx, 0.5 * qx + SQRT3_DIV_2 * qy) - r_inscribed
+
+
+def _box_sdf(px: np.ndarray, py: np.ndarray, half_x: float, half_y: float) -> np.ndarray:
+    dx = np.abs(px) - half_x
+    dy = np.abs(py) - half_y
+    outside = np.sqrt(np.maximum(dx, 0.0) ** 2 + np.maximum(dy, 0.0) ** 2)
+    inside = np.minimum(np.maximum(dx, dy), 0.0)
+    return outside + inside
+
+
+def _feather(dist: np.ndarray, threshold: float, feather_width: float) -> np.ndarray:
+    if feather_width > 0:
+        return np.clip(1.0 - (dist - threshold) / feather_width, 0.0, 1.0)
+    return np.where(dist <= threshold, 1.0, 0.0)
+
+
+def _compute_hex_grid(wx: np.ndarray, wy: np.ndarray, R_cam: float, r_inscribed: float, img_half_x: float, img_half_y: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    fq, fr = _pixel_to_hex(wx, wy, R_cam)
+    cq, cr = _cube_round(fq, fr)
+    best_cx, best_cy = _hex_to_pixel(cq, cr, R_cam)
+
+    # distances to hex center
+    lx = wx - best_cx
+    ly = wy - best_cy
+
+    hs = _hex_sdf(lx, ly, r_inscribed)
+    bs = _box_sdf(lx, ly, img_half_x, img_half_y)
+
+    min_hex_sdf = hs
+    min_content_sdf = np.maximum(hs, bs)
+
+    return min_hex_sdf, min_content_sdf, best_cx, best_cy
+
+def _sample_nearest(img_arr: npt.NDArray[np.uint8], u: np.ndarray, v: np.ndarray, valid_mask: npt.NDArray[np.bool_]) -> npt.NDArray[np.uint8]:
+    H, W = img_arr.shape[:2]
+    C = img_arr.shape[2]
+    output = np.zeros(u.shape + (C,), dtype=np.uint8)
+
+    src_x = np.clip((u * W).astype(np.int32), 0, W - 1)
+    src_y = np.clip((v * H).astype(np.int32), 0, H - 1)
+    output[valid_mask] = img_arr[src_y[valid_mask], src_x[valid_mask]]
+
+    return output
