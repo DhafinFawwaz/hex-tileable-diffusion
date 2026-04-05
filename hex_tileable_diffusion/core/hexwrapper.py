@@ -8,6 +8,46 @@ from .geometry import _compute_hex_grid, _sample_nearest, _feather, _hex_sdf, _p
 from .constant import SQRT3
 
 class HexWrapper:
+
+    img_arr: np.ndarray
+    hypotenuse: float
+    x_offset: float
+    y_offset: float
+    outer_margin: float
+    inner_padding: float
+    gap_padding: float
+    feather_width: float
+    horizontal_camera_padding: float
+    vertical_camera_padding: float
+    on_debug: Optional[Callable[[Union[str, np.ndarray]], None]]
+
+    R_base: float
+    R_cam: float
+    w_cam: float
+    h_cam: float
+    h_cam_offset: float
+    gen_W: int
+    gen_H: int
+    gen_size: int
+    shift_x: float
+    shift_y: float
+    hcx: float
+    hcy: float
+    sq_left: int
+    sq_top: int
+    sq_right: int
+    sq_bottom: int
+    sq_half_x: float
+    sq_half_y: float
+    out_W: int
+    out_H: int
+    d_inward: np.ndarray
+    comp_star: np.ndarray
+    comp_gap: np.ndarray
+    dist_gap: np.ndarray
+    wx: np.ndarray
+    wy: np.ndarray
+
     def __init__(
         self,
         img_arr: np.ndarray, hypotenuse: float, x_offset: float, y_offset: float,
@@ -28,6 +68,7 @@ class HexWrapper:
         self.on_debug = on_debug
 
     def wrap(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return (offset_rgb_arr, mask_arr)"""
         img_arr = self.img_arr
         on_debug = self.on_debug
 
