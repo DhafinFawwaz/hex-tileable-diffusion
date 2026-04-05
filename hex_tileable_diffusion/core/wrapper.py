@@ -75,24 +75,17 @@ def wrap_hexagon_image(
     ly = wy - best_cy
 
     # Convert to UV for sampling the input image
+    # UV is just UV coords
     u = (lx + img_half_x) / img_W
     v = (ly + img_half_y) / img_H
     valid = (u >= 0) & (u < 1) & (v >= 0) & (v < 1) & (min_content_sdf < 0)
 
-    # UV is just UV coords
-    sampled = _sample_nearest(img_arr, u, v, valid)
-
-    final_rgba = np.zeros((gen_H, gen_W, 4), dtype=np.uint8)
-    final_rgba[valid] = sampled[valid]
+    img_arr_rgb = img_arr[..., :3] # exclude alpha
+    offset_rgb_arr = _sample_nearest(img_arr_rgb, u, v, valid)
 
     if show_debug:
-        print("final_rgba")
-        display(Image.fromarray(final_rgba, mode="RGBA"))
-
-    # Alpha composite onto black -> RGB array
-    offset_rgb_arr = np.zeros((gen_H, gen_W, 3), dtype=np.uint8)
-    alpha_mask = final_rgba[..., 3] > 0
-    offset_rgb_arr[alpha_mask] = final_rgba[alpha_mask, :3]
+        print("offset_rgb_arr")
+        display(Image.fromarray(offset_rgb_arr))
 
     _ip = inner_padding or 0
     _gp = gap_padding or 0
