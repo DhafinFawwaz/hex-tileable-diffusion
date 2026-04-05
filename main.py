@@ -1,6 +1,7 @@
 from PIL import Image
 from IPython.display import display, Image as IPImage
-from hex_tileable_diffusion.core.wrapper import wrap_hexagon_image, debug_wrap_hexagon_image_info
+from hex_tileable_diffusion.core.hexwrapper import HexWrapper
+from torch import cuda
 
 import time
 import numpy as np
@@ -15,6 +16,18 @@ def debug_display(v, scale=0.25):
     else:
         print(v)
 
+def get_machine_info() -> tuple[str, str | None, float | None]:
+    if cuda.is_available():
+        return ((
+            "cuda",
+            cuda.get_device_name(0),
+            cuda.get_device_properties(0).total_memory / (1024 ** 3),
+        ))
+    else:
+        return (("cpu", None, None)) 
+
+print("Machine Info:", get_machine_info())
+
 image_path = "demos/rock1_512.png"
 output_dir = "."
 output_size = 512
@@ -28,7 +41,7 @@ input_arr = np.array(input_image)
 
 t0 = time.time()
 
-rgb_arr, mask_arr, info = wrap_hexagon_image(
+hex_wrapper = HexWrapper(
     img_arr=input_arr,
     hypotenuse=306,
     x_offset=0,
@@ -41,21 +54,22 @@ rgb_arr, mask_arr, info = wrap_hexagon_image(
     vertical_camera_padding=560,
     on_debug=debug_display,
 )
+rgb_arr, mask_arr = hex_wrapper.wrap()
 
 t1 = time.time()
 print(f"{t1-t0:.3f}s")
 
-outer_margin = info.outer_margin
-inner_padding = info.inner_padding
-gap_padding = info.gap_padding
-feather_width = info.feather_width
-R_cam = info.R_cam
-hypotenuse = info.R_base
-horizontal_camera_padding = info.horizontal_camera_padding
-vertical_camera_padding = info.vertical_camera_padding
-(gen_W, gen_H) = (info.gen_W, info.gen_H)
-R_cam = info.R_cam
-(shift_x, shift_y) = (info.shift_x, info.shift_y)
+outer_margin = hex_wrapper.outer_margin
+inner_padding = hex_wrapper.inner_padding
+gap_padding = hex_wrapper.gap_padding
+feather_width = hex_wrapper.feather_width
+R_cam = hex_wrapper.R_cam
+hypotenuse = hex_wrapper.R_base
+horizontal_camera_padding = hex_wrapper.horizontal_camera_padding
+vertical_camera_padding = hex_wrapper.vertical_camera_padding
+(gen_W, gen_H) = (hex_wrapper.gen_W, hex_wrapper.gen_H)
+R_cam = hex_wrapper.R_cam
+(shift_x, shift_y) = (hex_wrapper.shift_x, hex_wrapper.shift_y)
 
 print("Camera View")
 print("Outer Margin (Magenta):", outer_margin)
@@ -70,7 +84,7 @@ print(f"(Generated Width, Generated Height): ({gen_W}, {gen_H})")
 print(f"(Shift X, Shift Y): ({shift_x}, {shift_y})")
 print(f"R_cam: {R_cam}")
 
-debug_arr = debug_wrap_hexagon_image_info(info)
+debug_arr = hex_wrapper.debug_wrap(rgb_arr, mask_arr)
 debug_display(debug_arr)
 
 Image.fromarray(debug_arr).save("demos/rock1_wrapped_output.png")

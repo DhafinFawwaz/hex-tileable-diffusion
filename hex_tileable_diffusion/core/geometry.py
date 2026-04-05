@@ -80,3 +80,20 @@ def _sample_nearest(img_arr: npt.NDArray[np.uint8], u: np.ndarray, v: np.ndarray
     output[valid_mask] = img_arr[src_y[valid_mask], src_x[valid_mask]]
 
     return output
+
+def _tile_image_hexagonally(tile_arr: np.ndarray, out_w: int, out_h: int, R: float, offset_x: float = 0.0, offset_y: float = 0.0) -> np.ndarray:
+    th, tw = tile_arr.shape[:2]
+    tcx, tcy = tw / 2.0, th / 2.0
+
+    gy, gx = np.mgrid[0:out_h, 0:out_w]
+    px = gx.astype(np.float64) - offset_x
+    py = gy.astype(np.float64) - offset_y
+
+    fq, fr = _pixel_to_hex(px, py, R)
+    rq, rr = _cube_round(fq, fr)
+    cx, cy = _hex_to_pixel(rq, rr, R)
+
+    src_x = np.clip(np.round(px - cx + tcx).astype(np.int32), 0, tw - 1)
+    src_y = np.clip(np.round(py - cy + tcy).astype(np.int32), 0, th - 1)
+
+    return tile_arr[src_y, src_x]
