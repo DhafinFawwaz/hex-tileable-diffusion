@@ -1,14 +1,23 @@
 from PIL import Image
-from IPython.display import display
+from IPython.display import display, Image as IPImage
 from hex_tileable_diffusion.core.wrapper import wrap_hexagon_image, debug_wrap_hexagon_image_info
 
 import time
+import numpy as np
+
+def debug_display(v, scale=0.25):
+    if isinstance(v, str):
+        print(v)
+    elif isinstance(v, np.ndarray) and v.dtype == np.uint8:
+        img = Image.fromarray(v)
+        w = img.size[0]
+        display(IPImage(data=img._repr_png_(), width=int(w * scale)))
+    else:
+        print(v)
 
 image_path = "demos/rock1_512.png"
 output_dir = "."
 output_size = 512
-
-import numpy as np
 
 input_image = (
     Image.open(image_path)
@@ -30,7 +39,7 @@ rgb_arr, mask_arr, info = wrap_hexagon_image(
     feather_width=30,
     horizontal_camera_padding=540,
     vertical_camera_padding=560,
-    show_debug=True,
+    on_debug=debug_display,
 )
 
 t1 = time.time()
@@ -62,8 +71,7 @@ print(f"(Shift X, Shift Y): ({shift_x}, {shift_y})")
 print(f"R_cam: {R_cam}")
 
 debug_arr = debug_wrap_hexagon_image_info(info)
-display(Image.fromarray(debug_arr))
-
+debug_display(debug_arr)
 
 Image.fromarray(debug_arr).save("demos/rock1_wrapped_output.png")
 Image.fromarray(rgb_arr).save("demos/rock1_wrapped_rgb.png")

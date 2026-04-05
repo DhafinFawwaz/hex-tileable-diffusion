@@ -1,9 +1,8 @@
 import math
 import numpy as np
-from PIL import Image
 import matplotlib.pyplot as plt
-from IPython.display import display
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from typing import Callable, Optional, Union
 
 from .info import HexWrapInfo
 from .geometry import _compute_hex_grid, _sample_nearest, _feather, _hex_sdf, _pixel_to_hex, _cube_round, _hex_to_pixel
@@ -13,7 +12,7 @@ def wrap_hexagon_image(
     img_arr: np.ndarray, hypotenuse: float, x_offset: float, y_offset: float,
     outer_margin: float = 0, inner_padding: float = 0, gap_padding: float = 0, feather_width: float = 0,
     horizontal_camera_padding: float = 0, vertical_camera_padding: float = 0,
-    show_debug: bool = True,
+    on_debug: Optional[Callable[[Union[str, np.ndarray]], None]] = None,
 ) -> tuple[np.ndarray, np.ndarray, HexWrapInfo]:
     img_H, img_W = img_arr.shape[:2]
     img_half_x = img_W / 2.0
@@ -47,26 +46,26 @@ def wrap_hexagon_image(
     wx = (gx.astype(np.float64) + 0.5) * scale_x + (shift_x - sq_half_x)
     wy = (gy.astype(np.float64) + 0.5) * scale_y + (shift_y - sq_half_y)
 
-    if show_debug:
-        print("gx")
-        print(gx)
-        print("wx")
-        print(wx)
+    if on_debug:
+        on_debug("gx")
+        on_debug(gx)
+        on_debug("wx")
+        on_debug(wx)
 
     min_hex_sdf, min_content_sdf, best_cx, best_cy = _compute_hex_grid(wx, wy, R_cam, r_other, img_half_x, img_half_y)
 
     # min_hex_sdf: distance to hex edge
     # min_content_sdf: distance to irisan hex & square
     # best_cx, best_cy: which hex center is closest to each pixel
-    if show_debug: 
-        print("min_hex_sdf")
-        display(Image.fromarray(min_hex_sdf.astype(np.uint8)))
-        print("min_content_sdf")
-        display(Image.fromarray(min_content_sdf.astype(np.uint8)))
-        print("best_cx")
-        display(Image.fromarray(best_cx.astype(np.uint8)))
-        print("best_cy")
-        display(Image.fromarray(best_cy.astype(np.uint8)))
+    if on_debug:
+        on_debug("min_hex_sdf")
+        on_debug(min_hex_sdf.astype(np.uint8))
+        on_debug("min_content_sdf")
+        on_debug(min_content_sdf.astype(np.uint8))
+        on_debug("best_cx")
+        on_debug(best_cx.astype(np.uint8))
+        on_debug("best_cy")
+        on_debug(best_cy.astype(np.uint8))
 
     d_inward = -min_hex_sdf
     dist_gap = -min_content_sdf
@@ -83,9 +82,9 @@ def wrap_hexagon_image(
     img_arr_rgb = img_arr[..., :3] # exclude alpha
     offset_rgb_arr = _sample_nearest(img_arr_rgb, u, v, valid)
 
-    if show_debug:
-        print("offset_rgb_arr")
-        display(Image.fromarray(offset_rgb_arr))
+    if on_debug:
+        on_debug("offset_rgb_arr")
+        on_debug(offset_rgb_arr)
 
     _ip = inner_padding or 0
     _gp = gap_padding or 0
@@ -95,13 +94,11 @@ def wrap_hexagon_image(
     comp_gap = _feather(dist_gap, _gp, _fw)
     mask_arr = (np.maximum(comp_star, comp_gap) * 255).astype(np.uint8)
 
-    if show_debug:
-        print("mask_arr")
-        display(Image.fromarray(mask_arr, mode="L"))
-
-    if show_debug:
-        print("offset_rgb_arr")
-        display(Image.fromarray(offset_rgb_arr))
+    if on_debug:
+        on_debug("mask_arr")
+        on_debug(mask_arr)
+        on_debug("offset_rgb_arr")
+        on_debug(offset_rgb_arr)
 
     # Info for un-offsetting later
     out_W = int(math.ceil(4 * w_cam))
