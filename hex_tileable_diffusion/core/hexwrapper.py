@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from typing import Callable, Optional, Union
 
-from .geometry import _compute_hex_grid, _sample_nearest, _feather, _hex_sdf, _pixel_to_hex, _cube_round, _hex_to_pixel
+from .geometry import _compute_hex_grid, _sample_nearest, _feather, _hex_sdf, _pixel_to_hex, _cube_round, _hex_to_pixel, _tile_image_hexagonally
 from .constant import SQRT3
 
 class HexWrapper:
@@ -68,7 +68,7 @@ class HexWrapper:
         self.on_debug = on_debug
 
     def wrap(self) -> tuple[np.ndarray, np.ndarray]:
-        """Return (offset_rgb_arr, mask_arr)"""
+        """Offset image for diffusion. Return (offset_rgb_arr, mask_arr)"""
         img_arr = self.img_arr
         on_debug = self.on_debug
 
@@ -258,3 +258,57 @@ class HexWrapper:
         debug_arr = np.asarray(buf).copy()
         plt.close(fig)
         return debug_arr
+
+    
+    def unwrap(self, inpainted_rgb: np.ndarray, output_size: int = 0) -> tuple[np.ndarray, float]:
+        """Unoffset an inpainted image back to a tileable hex texture."""
+        R_cam = self.R_cam
+        w_cam = self.w_cam
+        h_cam = self.h_cam
+        gen_W, gen_H = self.gen_W, self.gen_H
+        raw_W = self.sq_right - self.sq_left
+        raw_H = self.sq_bottom - self.sq_top
+        sc_x = gen_W / raw_W if raw_W > 0 else 1.0
+        sc_y = gen_H / raw_H if raw_H > 0 else 1.0
+        sc = (sc_x + sc_y) / 2.0 # will be used for scaling R_cam and crop_side
+
+        inp_H, inp_W = inpainted_rgb.shape[:2]
+        if inp_W != gen_W or inp_H != gen_H:
+            inpainted_rgb = _resize_nearest(inpainted_rgb, gen_W, gen_H)
+
+        Rcs = R_cam * sc
+
+        pad_raw = int(math.ceil(2 * R_cam))
+        pad_gen = ((pad_raw + 7) // 8) * 8
+        crop_side = int(math.ceil(pad_gen * sc))
+
+        gy, gx = np.mgrid[0:gen_H, 0:gen_W]
+        hx = gx.astype(np.float64) + 0.5 - gen_W / 2.0
+        hy = gy.astype(np.float64) + 0.5 - gen_H / 2.0
+        r_inscribed = (SQRT3 / 2.0) * Rcs
+        hex_mask = _hex_sdf(hx, hy, r_inscribed) < 0
+
+        tile = np.zeros((gen_H, gen_W, 3), dtype=np.uint8)
+        tile[hex_mask] = inpainted_rgb[hex_mask, :3]
+
+        hcx_gen = (self.sq_half_x - self.x_offset * w_cam) * sc_x
+        hcy_gen = (self.sq_half_y - self.y_offset * h_cam) * sc_y
+        offset_x = crop_side / 2.0 - (hcx_gen - gen_W / 2.0)
+        offset_y = crop_side / 2.0 - (hcy_gen - gen_H / 2.0)
+
+        result_arr = _tile_image_hexagonally(tile, crop_side, crop_side, Rcs, offset_x, offset_y)
+
+        if output_size > 0 and output_size != crop_side:
+            result_arr = _resize_nearest(result_arr, output_size, output_size)
+
+        final_size = output_size if output_size > 0 else crop_side
+        R_final = R_cam * final_size / pad_gen
+        return result_arr, R_final
+    
+
+def _resize_nearest(arr: np.ndarray, out_w: int, out_h: int) -> np.ndarray:
+    in_h, in_w = arr.shape[:2]
+    ry, rx = np.mgrid[0:out_h, 0:out_w]
+    sy = np.clip(ry * in_h // out_h, 0, in_h - 1)
+    sx = np.clip(rx * in_w // out_w, 0, in_w - 1)
+    return arr[sy, sx]
