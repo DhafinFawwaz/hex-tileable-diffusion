@@ -4,8 +4,9 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from typing import Callable, Optional, Union
 
-from .geometry import _compute_hex_grid, _sample_nearest, _feather, _hex_sdf, _pixel_to_hex, _cube_round, _hex_to_pixel, _tile_image_hexagonally
+from .geometry import _compute_hex_grid, _sample_nearest, _feather, _hex_sdf, _tile_image_hexagonally
 from .constant import SQRT3
+from PIL import Image
 
 class HexWrapper:
 
@@ -128,35 +129,12 @@ class HexWrapper:
         d_inward = -min_hex_sdf
         dist_gap = -min_content_sdf
 
-        lx = wx - best_cx
-        ly = wy - best_cy
-
-        # Convert to UV for sampling the input image
-        # UV is just UV coords
-        u = (lx + img_half_x) / img_W
-        v = (ly + img_half_y) / img_H
-        valid = (u >= 0) & (u < 1) & (v >= 0) & (v < 1) & (min_content_sdf < 0)
-
-        img_arr_rgb = img_arr[..., :3] # exclude alpha
-        offset_rgb_arr = _sample_nearest(img_arr_rgb, u, v, valid)
-
-        if on_debug:
-            on_debug("offset_rgb_arr")
-            on_debug(offset_rgb_arr)
-
         _ip = self.inner_padding or 0
         _gp = self.gap_padding or 0
         _fw = self.feather_width or 0
 
         comp_star = _feather(d_inward, _ip, _fw)
         comp_gap = _feather(dist_gap, _gp, _fw)
-        mask_arr = (np.maximum(comp_star, comp_gap) * 255).astype(np.uint8)
-
-        if on_debug:
-            on_debug("mask_arr")
-            on_debug(mask_arr)
-            on_debug("offset_rgb_arr")
-            on_debug(offset_rgb_arr)
 
         # Info for un-offsetting later
         out_W = int(math.ceil(4 * w_cam))
@@ -167,6 +145,33 @@ class HexWrapper:
         sq_top = int(hcy - sq_half_y)
         sq_right = int(hcx + sq_half_x)
         sq_bottom = int(hcy + sq_half_y)
+
+        raw_W = sq_right - sq_left
+        raw_H = sq_bottom - sq_top
+        gy_r, gx_r = np.mgrid[0:raw_H, 0:raw_W]
+        wx_r = gx_r.astype(np.float64) + (shift_x - sq_half_x)
+        wy_r = gy_r.astype(np.float64) + (shift_y - sq_half_y)
+
+        hsdf_r, csdf_r, bcx_r, bcy_r = _compute_hex_grid(wx_r, wy_r, R_cam, r_other, img_half_x, img_half_y)
+        u_r = (wx_r - bcx_r + img_half_x) / img_W
+        v_r = (wy_r - bcy_r + img_half_y) / img_H
+        valid_r = (u_r >= 0) & (u_r < 1) & (v_r >= 0) & (v_r < 1) & (csdf_r < 0)
+
+        img_arr_rgb = img_arr[..., :3]
+        offset_rgb_raw = _sample_nearest(img_arr_rgb, u_r, v_r, valid_r)
+
+        if gen_W != raw_W or gen_H != raw_H:
+            offset_rgb_arr = np.array(Image.fromarray(offset_rgb_raw).resize((gen_W, gen_H), Image.Resampling.LANCZOS))
+        else:
+            offset_rgb_arr = offset_rgb_raw
+
+        mask_arr = (np.maximum(comp_star, comp_gap) * 255).astype(np.uint8)
+
+        if on_debug:
+            on_debug("offset_rgb_arr")
+            on_debug(offset_rgb_arr)
+            on_debug("mask_arr")
+            on_debug(mask_arr)
 
         self.R_base = R_base
         self.R_cam = R_cam
@@ -261,10 +266,10 @@ class HexWrapper:
 
     
     def unwrap(self, inpainted_rgb: np.ndarray, output_size: int = 0) -> tuple[np.ndarray, float]:
-        """Unoffset an inpainted image back to a tileable hex texture."""
         R_cam = self.R_cam
         w_cam = self.w_cam
         h_cam = self.h_cam
+
         gen_W, gen_H = self.gen_W, self.gen_H
         raw_W = self.sq_right - self.sq_left
         raw_H = self.sq_bottom - self.sq_top

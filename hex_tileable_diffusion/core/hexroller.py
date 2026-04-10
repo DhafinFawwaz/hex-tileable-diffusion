@@ -131,7 +131,8 @@ def hex_unroll_tensor(tensor: torch.Tensor, dx: int, dy: int, R: float) -> torch
     ]
 
 
-def hex_copy_fill_tensor(tensor: torch.Tensor, R: float) -> torch.Tensor:
+def hex_copy_fill_tensor(tensor: torch.Tensor, R: float, source: torch.Tensor | None = None) -> torch.Tensor:
+    src = source if source is not None else tensor
     _B, _C, H, W = tensor.shape
     cx, cy = W / 2.0, H / 2.0
     gy, gx = np.mgrid[0:H, 0:W]
@@ -146,46 +147,24 @@ def hex_copy_fill_tensor(tensor: torch.Tensor, R: float) -> torch.Tensor:
     wx, wy = _wrap_to_origin_hex(ox_o, oy_o, R)
     copy_src_x = np.clip(np.round(wx + cx).astype(np.int32), 0, W - 1)
     copy_src_y = np.clip(np.round(wy + cy).astype(np.int32), 0, H - 1)
-    good = hex_mask[copy_src_y, copy_src_x]
-    bad = ~good
     result = tensor.clone()
 
-    if good.any():
-        g_dst_y = torch.from_numpy(out_ys[good]).to(tensor.device).long()
-        g_dst_x = torch.from_numpy(out_xs[good]).to(tensor.device).long()
-        g_src_y = torch.from_numpy(copy_src_y[good]).to(tensor.device).long()
-        g_src_x = torch.from_numpy(copy_src_x[good]).to(tensor.device).long()
-        result[:, :, g_dst_y, g_dst_x] = tensor[:, :, g_src_y, g_src_x]
-
-    if bad.any():
-        bix = copy_src_x[bad].copy()
-        biy = copy_src_y[bad].copy()
-
-        still_outside = ~hex_mask[biy, bix]
-        if still_outside.any():
-            hex_ys, hex_xs = np.where(hex_mask)
-            for j in np.where(still_outside)[0]:
-                dists = (hex_xs - bix[j])**2 + (hex_ys - biy[j])**2
-                nearest = np.argmin(dists)
-                bix[j] = hex_xs[nearest]
-                biy[j] = hex_ys[nearest]
-
-        b_dst_y = torch.from_numpy(out_ys[bad]).to(tensor.device).long()
-        b_dst_x = torch.from_numpy(out_xs[bad]).to(tensor.device).long()
-        b_src_y = torch.from_numpy(biy).to(tensor.device).long()
-        b_src_x = torch.from_numpy(bix).to(tensor.device).long()
-        result[:, :, b_dst_y, b_dst_x] = result[:, :, b_src_y, b_src_x]
+    dst_y = torch.from_numpy(out_ys).to(tensor.device).long()
+    dst_x = torch.from_numpy(out_xs).to(tensor.device).long()
+    src_y = torch.from_numpy(copy_src_y).to(tensor.device).long()
+    src_x = torch.from_numpy(copy_src_x).to(tensor.device).long()
+    result[:, :, dst_y, dst_x] = src[:, :, src_y, src_x]
 
     return result
 
 
-def roll_tensor_mode(tensor: torch.Tensor, dx: int, dy: int, R: float, roll_mode: RollMode) -> torch.Tensor:
+def roll_tensor_mode(tensor: torch.Tensor, dx: int, dy: int, R: float, roll_mode: RollMode, original: torch.Tensor | None = None) -> torch.Tensor:
     if roll_mode == "hex_copy":
         r = hex_roll_tensor(tensor, dx, dy, R)
-        return hex_copy_fill_tensor(r, R)
+        return hex_copy_fill_tensor(r, R, source=original if original is not None else tensor)
     elif roll_mode == "hex_copy_no_roll":
         r = hex_roll_tensor(tensor, 0, 0, R)
-        return hex_copy_fill_tensor(r, R)
+        return hex_copy_fill_tensor(r, R, source=original if original is not None else tensor)
     elif roll_mode == "hex":
         return hex_roll_tensor(tensor, dx, dy, R)
     else:  # roll_mode == "square"

@@ -17,20 +17,20 @@ def _hex_to_pixel(q: np.ndarray, r: np.ndarray, R: float) -> tuple[np.ndarray, n
 def _cube_round(fq: np.ndarray, fr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     fs = -fq - fr
 
-    rq = np.round(fq)
-    rr = np.round(fr)
-    rs = np.round(fs)
-    
+    rq = np.round(fq).astype(float)
+    rr = np.round(fr).astype(float)
+    rs = np.round(fs).astype(float)
+
     dq = np.abs(rq - fq)
     dr = np.abs(rr - fr)
     ds = np.abs(rs - fs)
 
-    mask_q = (dq > dr) & (dq > ds)
-    mask_r = (~mask_q) & (dr > ds)
+    mq = (dq > dr) & (dq > ds)
+    mr = (~mq) & (dr > ds)
 
-    rq = np.where(mask_q, -rr - rs, rq)
-    rr = np.where(mask_r, -rq - rs, rr)
-    return rq, rr
+    rq[mq] = -rr[mq] - rs[mq]
+    rr[mr] = -rq[mr] - rs[mr]
+    return rq.astype(int), rr.astype(int)
 
 
 def _hex_sdf(px: np.ndarray, py: np.ndarray, r_inscribed: float) -> np.ndarray:
@@ -95,5 +95,14 @@ def _tile_image_hexagonally(tile_arr: np.ndarray, out_w: int, out_h: int, R: flo
 
     src_x = np.clip(np.round(px - cx + tcx).astype(np.int32), 0, tw - 1)
     src_y = np.clip(np.round(py - cy + tcy).astype(np.int32), 0, th - 1)
+
+    return tile_arr[src_y, src_x]
+
+def _tile_image_square(tile_arr: np.ndarray, out_w: int, out_h: int) -> np.ndarray:
+    th, tw = tile_arr.shape[:2]
+
+    gy, gx = np.mgrid[0:out_h, 0:out_w]
+    src_x = np.clip(np.round(gx % tw).astype(np.int32), 0, tw - 1)
+    src_y = np.clip(np.round(gy % th).astype(np.int32), 0, th - 1)
 
     return tile_arr[src_y, src_x]
