@@ -229,8 +229,8 @@ def run_rolling_inpaint(
             # Re-enforce hex periodicity
             if use_rolling_noise and needs_hex_fill:
                 lat_r = hex_copy_fill_tensor(lat_r, R_lat)
-
-            observer.on_each_denoise_step()
+            observer.on_log("debug", f"Step {i + 1}/{len(timesteps)}| ({dx_lat}, {dy_lat}) latents, ({dx_px}, {dy_px}) pixels")
+            observer.on_denoise_step(i, len(timesteps), pipe, lat_r, mask_r, mimg_r, ctrl_r)
 
             # Unroll
             if use_rolling_noise:

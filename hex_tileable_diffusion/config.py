@@ -46,10 +46,6 @@ class ControlNetConfig:
     model_id: ControlNetModelId | str | None = None
     conditioning_scale: float = 0.8
 
-    def __post_init__(self) -> None:
-        if self.model_id is not None and not self.enabled:
-            object.__setattr__(self, "enabled", True)
-
 
 @dataclass(frozen=True)
 class IPAdapterConfig:
@@ -60,6 +56,8 @@ class IPAdapterConfig:
     weight_name: IPAdapterWeightName | str = "ip-adapter_sd15.bin"
     scale: float = 0.85
     reference_image_path: str | Path | None = None
+    use_pass1_reference_for_pass2: bool = False
+    use_on_pass1: bool = True
 
 
 @dataclass(frozen=True)
@@ -115,7 +113,7 @@ class HexTileableDiffusionConfig:
     output_path: str | Path = "."
     cache_dir: str | Path = ".cache"
 
-    layout: HexWrapperConfig = field(default_factory=HexWrapperConfig)
+    wrapper: HexWrapperConfig = field(default_factory=HexWrapperConfig)
     diffusion: DiffusionConfig = field(default_factory=DiffusionConfig)
     controlnet: ControlNetConfig = field(default_factory=ControlNetConfig)
     ip_adapter: IPAdapterConfig = field(default_factory=IPAdapterConfig)

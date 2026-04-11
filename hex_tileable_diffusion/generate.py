@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -10,24 +11,33 @@ from hex_tileable_diffusion.util.image import load_image
 from hex_tileable_diffusion.diffusion.pipeline import HexInpaintPipeline
 from hex_tileable_diffusion.core.hexwrapper import HexWrapper
 from hex_tileable_diffusion.core.hexroller import _in_origin_hex
-from hex_tileable_diffusion.core.geometry import _tile_image_hexagonally, _tile_image_square
-from IPython.display import display
+from hex_tileable_diffusion.core.geometry import _tile_image_hexagonally
 
-def generate_hex_tileable_diffusion_texture (config: HexTileableDiffusionConfig, observer: HexObserver | None = None):
+
+@dataclass
+class GenerationInfo:
+    result: np.ndarray
+    R_final: float
+    image_arr: np.ndarray
+    output_size: int
+
+
+def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, observer: HexObserver | None = None):
     if observer is None: observer = HexObserver()
     observer.on_start()
+    observer.preview_count = config.visualization.in_between_preview_count
 
     torch.cuda.empty_cache()
-    
+
     if torch.cuda.is_available():
         observer.on_log("info", f"CUDA available: {torch.cuda.get_device_name(0)}, {torch.cuda.get_device_properties(0).total_memory / (1024 ** 3):.2f} GB")
     else:
         observer.on_log("warning", "CUDA not available, fallback to CPU. This will be slow!")
-    
+
     output_path = config.output_path
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    output_size = config.layout.output_size
+    output_size = config.wrapper.output_size
     observer.on_log("debug", f"Output size: {output_size}x{output_size}")
 
     image_arr = load_image(config.image_path, output_size)
@@ -35,23 +45,22 @@ def generate_hex_tileable_diffusion_texture (config: HexTileableDiffusionConfig,
     # Wrap
     wrapper = HexWrapper(
         img_arr=image_arr,
-        hypotenuse=config.layout.hypotenuse or output_size / 2,
-        x_offset=config.layout.x_offset,
-        y_offset=config.layout.y_offset,
-        outer_margin=config.layout.outer_margin,
-        inner_padding=config.layout.inner_padding,
-        gap_padding=config.layout.gap_padding,
-        feather_width=config.layout.feather_width,
-        horizontal_camera_padding=config.layout.horizontal_camera_padding,
-        vertical_camera_padding=config.layout.vertical_camera_padding,
+        hypotenuse=config.wrapper.hypotenuse or output_size / 2,
+        x_offset=config.wrapper.x_offset,
+        y_offset=config.wrapper.y_offset,
+        outer_margin=config.wrapper.outer_margin,
+        inner_padding=config.wrapper.inner_padding,
+        gap_padding=config.wrapper.gap_padding,
+        feather_width=config.wrapper.feather_width,
+        horizontal_camera_padding=config.wrapper.horizontal_camera_padding,
+        vertical_camera_padding=config.wrapper.vertical_camera_padding,
     )
     rgb_arr, mask_arr = wrapper.wrap()
 
     observer.on_log("info", "Hexagon image wrapped successfully")
     observer.on_log("debug", "Info", wrapper)
 
-    # debug_wrapped_img = wrapper.debug_wrap(rgb_arr, mask_arr, config.visualization.hex_outline_thickness)
-    observer.on_wrapped_finished(rgb_arr, mask_arr, config.visualization.hex_outline_thickness)
+    observer.on_wrapped_finished(wrapper, rgb_arr, mask_arr, config.visualization.hex_outline_thickness)
 
 
     hex_pipe = HexInpaintPipeline(
@@ -61,44 +70,37 @@ def generate_hex_tileable_diffusion_texture (config: HexTileableDiffusionConfig,
         cache_dir=config.cache_dir,
     )
     hex_pipe.download_or_get_from_cache()
-    
+
     observer.on_log("info", "Diffusion pipeline loaded successfully")
 
     # IP Adapter
     if config.ip_adapter.enabled:
         ref_img = Image.open(str(config.image_path)).convert("RGB")
         hex_pipe.encode_ip_reference(ref_img, config.diffusion.guidance_scale)
-        observer.on_log("info", f"IP-Adapter reference encoded (scale={config.ip_adapter.scale})")
+        observer.on_log("info", f"IP-Adapter reference encoded from input (scale={config.ip_adapter.scale})")
 
     # TODO: Finetuning
     if config.exterior.enabled:
         inner_result = _two_pass_inpaint(hex_pipe, wrapper, rgb_arr, mask_arr, image_arr, config, observer)
     else:
         inner_result = _simultaneous_inpaint(hex_pipe, wrapper, rgb_arr, mask_arr, image_arr, config, observer)
-    
-    observer.on_after_inpaint( # show image: source, mask, overlay, result. overlay = source + mask but red and a bit transparent
+
+    observer.on_after_inpaint(
         rgb_arr=rgb_arr,
-        mask_img=mask_arr,
+        mask_arr=mask_arr,
         result=inner_result,
     )
-
-    
-    observer.on_log("info", "Before unwrap (inner_result)")
-    display(Image.fromarray(inner_result))
 
     # Unwrap
     result, R_final = wrapper.unwrap(inner_result, output_size=output_size)
 
-    observer.on_after_unwrap(result, R_final) # show image unwrapped (without zoom. show red hexagon contour), unwrapped & zoomed (final result), hex cropped (for preview only. transparent bg)
-    
-    
-    # TODO: Postprocess
+    observer.on_after_unwrap(wrapper, inner_result, result, R_final, output_size)
 
-    observer.on_after_postprocess(result) # show image: final, postprocessed
+    # TODO: Postprocess
+    observer.on_after_postprocess(result, result)
 
     observer.on_log("info", f"Saving final result to {output_path}")
     img = Image.fromarray(result)
-    display(img)
     img.save(output_path)
 
     # _tile_image_hexagonally
@@ -107,22 +109,10 @@ def generate_hex_tileable_diffusion_texture (config: HexTileableDiffusionConfig,
     tiled_output_path = os.path.splitext(output_path)[0] + "_tiled.png"
     tiled_img.save(tiled_output_path)
     observer.on_log("info", f"Saving tiled result to {tiled_output_path}")
-    display(tiled_img)
 
-    # _tile_image_square
-    # compare with before
-    observer.on_log("info", "Before (Square)")
-    b_tiled_arr = _tile_image_square(image_arr, output_size*4, output_size*4)
-    b_tiled_img = Image.fromarray(b_tiled_arr.astype(np.uint8))
-    display(b_tiled_img)
+    observer.on_finished(image_arr, result, R_final, output_size)
 
-    observer.on_log("info", "Before (Hexagon)")
-    b_hex_tiled_arr = _tile_image_hexagonally(image_arr, output_size*4, output_size*4, image_arr.shape[0] / 2)
-    b_hex_tiled_img = Image.fromarray(b_hex_tiled_arr.astype(np.uint8))
-    display(b_hex_tiled_img)
-
-    # TODO: result container
-    return result, R_final
+    return GenerationInfo(result=result, R_final=R_final, image_arr=image_arr, output_size=output_size)
 
 
 def _simultaneous_inpaint(
@@ -139,7 +129,7 @@ def _simultaneous_inpaint(
     output_path = config.output_path
 
     observer.on_log("info", "Starting simultaneous inpaint")
-    
+
     inner_result = hex_pipe.inpaint(
         source_image=rgb_arr,
         mask_image=mask_arr,
@@ -175,6 +165,14 @@ def _two_pass_inpaint(
 
     # Pass 1: fill gaps, full mask, no rolling, no ControlNet
     observer.on_log("info", "Pass 1: exterior fill (no rolling, no ControlNet)")
+    observer.show_denoise_steps = False
+
+    # Temporarily disable IP Adapter for pass 1 if configured
+    saved_ip_embeds = None
+    if config.ip_adapter.enabled and not config.ip_adapter.use_on_pass1:
+        saved_ip_embeds = hex_pipe.ip_adapter_embeds
+        hex_pipe.ip_adapter_embeds = None
+
     pass1 = hex_pipe.inpaint(
         source_image=rgb_arr,
         mask_image=mask_arr,
@@ -192,10 +190,21 @@ def _two_pass_inpaint(
         observer=observer,
         output_dir=output_path,
     )
+
+    # Restore IP Adapter embeds
+    if saved_ip_embeds is not None:
+        hex_pipe.ip_adapter_embeds = saved_ip_embeds
+
+    observer.show_denoise_steps = True
     observer.on_log("info", "Pass 1 completed")
 
-    observer.on_log("info", "=== DEBUG: Pass 1 result ===")
-    display(Image.fromarray(pass1))
+    # Reencode IP Adapter reference from pass 1 result
+    if config.ip_adapter.enabled and config.ip_adapter.use_pass1_reference_for_pass2:
+        ref_img = Image.fromarray(pass1)
+        hex_pipe.encode_ip_reference(ref_img, config.diffusion.guidance_scale)
+        observer.on_log("info", f"IP-Adapter reference re-encoded from pass 1 (scale={config.ip_adapter.scale})")
+
+    observer.on_after_pass1(rgb_arr, mask_arr, pass1, wrapper, config.wrapper.output_size)
 
     # Pass 2 mask: full mask clipped to hex interior
     raw_W = wrapper.sq_right - wrapper.sq_left
@@ -222,11 +231,9 @@ def _two_pass_inpaint(
         + pass1.astype(np.float32) * mask_f
     ).clip(0, 255).astype(np.uint8)
 
-    observer.on_log("info", "DEBUG: Pass 2 mask")
-    display(Image.fromarray(pass2_mask))
-
     # Pass 2: reinpaint full mask inside hex. rolling ON, ControlNet ON
     observer.on_log("info", "Pass 2: hex-periodic re-inpaint (rolling + ControlNet)")
+    observer.on_before_pass2(pass1, pass2_mask)
     pass2 = hex_pipe.inpaint(
         source_image=pass1,
         mask_image=pass2_mask,

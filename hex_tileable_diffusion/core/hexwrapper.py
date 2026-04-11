@@ -288,10 +288,11 @@ class HexWrapper:
         crop_side = int(math.ceil(pad_gen * sc))
 
         gy, gx = np.mgrid[0:gen_H, 0:gen_W]
-        hx = gx.astype(np.float64) + 0.5 - gen_W / 2.0
-        hy = gy.astype(np.float64) + 0.5 - gen_H / 2.0
+        hx = gx.astype(np.float64) - gen_W / 2.0
+        hy = gy.astype(np.float64) - gen_H / 2.0
         r_inscribed = (SQRT3 / 2.0) * Rcs
-        hex_mask = _hex_sdf(hx, hy, r_inscribed) < 0
+        # Use 2px margin to ensure tile has content at every position _tile_image_hexagonally might sample. Prevents black boundary gaps.
+        hex_mask = _hex_sdf(hx, hy, r_inscribed) < 2.0
 
         tile = np.zeros((gen_H, gen_W, 3), dtype=np.uint8)
         tile[hex_mask] = inpainted_rgb[hex_mask, :3]
