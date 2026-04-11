@@ -22,7 +22,7 @@ class GenerationInfo:
     output_size: int
 
 
-def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, observer: HexObserver | None = None):
+def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, observer: HexObserver | None = None) -> GenerationInfo:
     if observer is None: observer = HexObserver()
     observer.on_start()
     observer.preview_count = config.visualization.in_between_preview_count
@@ -123,7 +123,7 @@ def _simultaneous_inpaint(
     image_arr: np.ndarray,
     config: HexTileableDiffusionConfig,
     observer: HexObserver,
-) -> Image.Image:
+) -> np.ndarray:
     dc = config.diffusion
     gen_W, gen_H = wrapper.gen_W, wrapper.gen_H
     output_path = config.output_path

@@ -218,7 +218,7 @@ def run_rolling_inpaint(
             # UNet forward pass
             pred = pipe.unet(lin, t, encoder_hidden_states=pe_comb, **unet_extra, return_dict=False)[0]
 
-            # Classifier-free guidance
+            # Classifier free guidance
             if do_cfg:
                 pu, pc = pred.chunk(2)
                 pred = pu + cfg * (pc - pu)
@@ -226,11 +226,11 @@ def run_rolling_inpaint(
             # Scheduler step
             lat_r = pipe.scheduler.step(pred, t, lat_r, return_dict=False)[0]
 
-            # Re-enforce hex periodicity
+            # Reenforce hex periodicity
             if use_rolling_noise and needs_hex_fill:
                 lat_r = hex_copy_fill_tensor(lat_r, R_lat)
             observer.on_log("debug", f"Step {i + 1}/{len(timesteps)}| ({dx_lat}, {dy_lat}) latents, ({dx_px}, {dy_px}) pixels")
-            observer.on_denoise_step(i, len(timesteps), pipe, lat_r, mask_r, mimg_r, ctrl_r)
+            observer.on_denoise_step(i, len(timesteps), pipe.vae, pipe.image_processor, lat_r, mask_r, mimg_r, ctrl_r)
 
             # Unroll
             if use_rolling_noise:
