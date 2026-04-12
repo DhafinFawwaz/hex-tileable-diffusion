@@ -42,7 +42,6 @@ input_arr = np.array(input_image)
 t0 = time.time()
 
 hex_wrapper = HexWrapper(
-    img_arr=input_arr,
     hypotenuse=306,
     x_offset=0,
     y_offset=0.5,
@@ -54,7 +53,7 @@ hex_wrapper = HexWrapper(
     vertical_camera_padding=560,
     on_debug=debug_display,
 )
-rgb_arr, mask_arr = hex_wrapper.wrap()
+rgb_arr, mask_arr, wrap_debug = hex_wrapper.wrap(input_arr)
 
 t1 = time.time()
 print(f"{t1-t0:.3f}s")
@@ -84,7 +83,7 @@ print(f"(Generated Width, Generated Height): ({gen_W}, {gen_H})")
 print(f"(Shift X, Shift Y): ({shift_x}, {shift_y})")
 print(f"R_cam: {R_cam}")
 
-debug_arr = hex_wrapper.debug_wrap(rgb_arr, mask_arr)
+debug_arr = hex_wrapper.debug_wrap(rgb_arr, mask_arr, wrap_debug)
 debug_display(debug_arr)
 
 Image.fromarray(debug_arr).save("demos/rock1_wrapped_output.png")

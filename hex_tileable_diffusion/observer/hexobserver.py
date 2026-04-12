@@ -9,7 +9,7 @@ from IPython.display import display
 from hex_tileable_diffusion.types import LogLevel
 from hex_tileable_diffusion.core.constant import SQRT3
 from hex_tileable_diffusion.core.geometry import _hex_sdf, _tile_image_hexagonally, _tile_image_square
-from hex_tileable_diffusion.core.hexwrapper import HexWrapper
+from hex_tileable_diffusion.core.hexwrapper import HexWrapper, WrapDebugInfo
 from hex_tileable_diffusion.util.decode import decode_latents_to_image
 
 
@@ -87,21 +87,21 @@ class HexObserver():
 
     def on_start(self) -> None:
         self.start_time = time()
-        self.on_log("info", "Hexagonal Seamless & Tileable Texture Diffusion Generation started")
+        self.on_log("info", f"Hexagonal Seamless & Tileable Texture Diffusion Generation started at {format_time(self.start_time)}")
 
     def on_log(self, level: LogLevel, message: str, values: dict | Any | None = None) -> None:
         t = time() - self.start_time if self.start_time else 0
         print(f"[{level.upper()}] [{format_time(t)}] {message}")
         if values is not None: print(format_print(values))
 
-    def visualize_wrapped_finished(self, wrapper: HexWrapper, rgb_arr: np.ndarray, mask_arr: np.ndarray, hex_outline_thickness: float) -> list[np.ndarray]:
-        debug_img = wrapper.debug_wrap(rgb_arr, mask_arr, hex_outline_thickness)
+    def visualize_wrapped_finished(self, wrapper: HexWrapper, rgb_arr: np.ndarray, mask_arr: np.ndarray, debug_info: WrapDebugInfo, hex_outline_thickness: float) -> list[np.ndarray]:
+        debug_img = wrapper.debug_wrap(rgb_arr, mask_arr, debug_info, hex_outline_thickness)
         return [debug_img[..., :3], rgb_arr, np.stack([mask_arr] * 3, axis=-1)]
 
-    def on_wrapped_finished(self, wrapper: HexWrapper, rgb_arr: np.ndarray, mask_arr: np.ndarray, hex_outline_thickness: float) -> None:
+    def on_wrapped_finished(self, wrapper: HexWrapper, rgb_arr: np.ndarray, mask_arr: np.ndarray, debug_info: WrapDebugInfo, hex_outline_thickness: float) -> None:
         self.on_log("info", "Wrapped")
         print("Canvas Debugger | RGB (Hex Cam View) | Mask")
-        display(_concat_horizontal(self.visualize_wrapped_finished(wrapper, rgb_arr, mask_arr, hex_outline_thickness)))
+        display(_concat_horizontal(self.visualize_wrapped_finished(wrapper, rgb_arr, mask_arr, debug_info, hex_outline_thickness)))
 
     def visualize_after_pass1(self, rgb_arr: np.ndarray, mask_arr: np.ndarray, pass1_result: np.ndarray, wrapper: HexWrapper, output_size: int) -> list[np.ndarray]:
         tiled_result, R = wrapper.unwrap(pass1_result, output_size=output_size)

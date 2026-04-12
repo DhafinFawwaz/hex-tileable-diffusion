@@ -22,7 +22,7 @@ class GenerationInfo:
     output_size: int
 
 
-def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, observer: HexObserver | None = None) -> GenerationInfo:
+def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, observer: HexObserver | None = None) -> tuple[np.ndarray, GenerationInfo]:
     if observer is None: observer = HexObserver()
     observer.on_start()
     observer.preview_count = config.visualization.in_between_preview_count
@@ -30,7 +30,10 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
     torch.cuda.empty_cache()
 
     if torch.cuda.is_available():
-        observer.on_log("info", f"CUDA available: {torch.cuda.get_device_name(0)}, {torch.cuda.get_device_properties(0).total_memory / (1024 ** 3):.2f} GB")
+        free_bytes, total_bytes = torch.cuda.mem_get_info(0)
+        free_gb = free_bytes / (1024 ** 3)
+        total_gb = total_bytes / (1024 ** 3)
+        observer.on_log("info", f"CUDA available: {torch.cuda.get_device_name(0)}, {(total_gb-free_gb):.2f}/{total_gb:.2f} GB")
     else:
         observer.on_log("warning", "CUDA not available, fallback to CPU. This will be slow!")
 
@@ -44,7 +47,6 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
 
     # Wrap
     wrapper = HexWrapper(
-        img_arr=image_arr,
         hypotenuse=config.wrapper.hypotenuse or output_size / 2,
         x_offset=config.wrapper.x_offset,
         y_offset=config.wrapper.y_offset,
@@ -55,12 +57,12 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
         horizontal_camera_padding=config.wrapper.horizontal_camera_padding,
         vertical_camera_padding=config.wrapper.vertical_camera_padding,
     )
-    rgb_arr, mask_arr = wrapper.wrap()
+    rgb_arr, mask_arr, wrap_debug = wrapper.wrap(image_arr)
 
     observer.on_log("info", "Hexagon image wrapped successfully")
     observer.on_log("debug", "Info", wrapper)
 
-    observer.on_wrapped_finished(wrapper, rgb_arr, mask_arr, config.visualization.hex_outline_thickness)
+    observer.on_wrapped_finished(wrapper, rgb_arr, mask_arr, wrap_debug, config.visualization.hex_outline_thickness)
 
 
     hex_pipe = HexInpaintPipeline(
@@ -112,7 +114,7 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
 
     observer.on_finished(image_arr, result, R_final, output_size)
 
-    return GenerationInfo(result=result, R_final=R_final, image_arr=image_arr, output_size=output_size)
+    return result, GenerationInfo(result=result, R_final=R_final, image_arr=image_arr, output_size=output_size)
 
 
 def _simultaneous_inpaint(

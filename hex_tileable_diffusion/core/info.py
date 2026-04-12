@@ -40,11 +40,3 @@ class HexWrapInfo:
     # Output arrays
     offset_rgb_arr: np.ndarray   # (H, W, 3) uint8
     mask_arr: np.ndarray         # (H, W) uint8
-    
-    # Debug arrays
-    d_inward: np.ndarray
-    comp_star: np.ndarray
-    comp_gap: np.ndarray
-    dist_gap: np.ndarray
-    wx: np.ndarray
-    wy: np.ndarray

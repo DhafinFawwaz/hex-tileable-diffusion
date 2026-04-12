@@ -2,15 +2,24 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from typing import Callable, Optional, Union
+from typing import Callable, NamedTuple, Optional, Union
 
 from .geometry import _compute_hex_grid, _sample_nearest, _feather, _hex_sdf, _tile_image_hexagonally
 from .constant import SQRT3
 from PIL import Image
 
+
+class WrapDebugInfo(NamedTuple):
+    d_inward: np.ndarray
+    comp_star: np.ndarray
+    comp_gap: np.ndarray
+    dist_gap: np.ndarray
+    wx: np.ndarray
+    wy: np.ndarray
+
+
 class HexWrapper:
 
-    img_arr: np.ndarray
     hypotenuse: float
     x_offset: float
     y_offset: float
@@ -42,21 +51,14 @@ class HexWrapper:
     sq_half_y: float
     out_W: int
     out_H: int
-    d_inward: np.ndarray
-    comp_star: np.ndarray
-    comp_gap: np.ndarray
-    dist_gap: np.ndarray
-    wx: np.ndarray
-    wy: np.ndarray
 
     def __init__(
         self,
-        img_arr: np.ndarray, hypotenuse: float, x_offset: float, y_offset: float,
+        hypotenuse: float, x_offset: float, y_offset: float,
         outer_margin: float = 0, inner_padding: float = 0, gap_padding: float = 0, feather_width: float = 0,
         horizontal_camera_padding: float = 0, vertical_camera_padding: float = 0,
         on_debug: Optional[Callable[[Union[str, np.ndarray]], None]] = None,
     ):
-        self.img_arr = img_arr
         self.hypotenuse = hypotenuse
         self.x_offset = x_offset
         self.y_offset = y_offset
@@ -68,9 +70,8 @@ class HexWrapper:
         self.vertical_camera_padding = vertical_camera_padding
         self.on_debug = on_debug
 
-    def wrap(self) -> tuple[np.ndarray, np.ndarray]:
-        """Offset image for diffusion. Return (offset_rgb_arr, mask_arr)"""
-        img_arr = self.img_arr
+    def wrap(self, img_arr: np.ndarray) -> tuple[np.ndarray, np.ndarray, WrapDebugInfo]:
+        """Offset image for diffusion. Return (offset_rgb_arr, mask_arr, debug_info)"""
         on_debug = self.on_debug
 
         img_H, img_W = img_arr.shape[:2]
@@ -193,29 +194,32 @@ class HexWrapper:
         self.sq_half_y = sq_half_y
         self.out_W = out_W
         self.out_H = out_H
-        self.d_inward = d_inward
-        self.comp_star = comp_star
-        self.comp_gap = comp_gap
-        self.dist_gap = dist_gap
-        self.wx = wx
-        self.wy = wy
 
-        return offset_rgb_arr, mask_arr
+        debug_info = WrapDebugInfo(
+            d_inward=d_inward,
+            comp_star=comp_star,
+            comp_gap=comp_gap,
+            dist_gap=dist_gap,
+            wx=wx,
+            wy=wy,
+        )
+
+        return offset_rgb_arr, mask_arr, debug_info
 
 
-    def debug_wrap(self, offset_rgb_arr: np.ndarray, mask_arr: np.ndarray, overlay_linewidth: float = 2.0) -> np.ndarray:
+    def debug_wrap(self, offset_rgb_arr: np.ndarray, mask_arr: np.ndarray, debug_info: WrapDebugInfo, overlay_linewidth: float = 2.0) -> np.ndarray:
         gen_W = self.gen_W
         gen_H = self.gen_H
         outer_margin = self.outer_margin
         inner_padding = self.inner_padding
         gap_padding = self.gap_padding
         feather_width = self.feather_width
-        d_inward = self.d_inward
-        comp_star = self.comp_star
-        comp_gap = self.comp_gap
-        dist_gap = self.dist_gap
-        wx = self.wx
-        wy = self.wy
+        d_inward = debug_info.d_inward
+        comp_star = debug_info.comp_star
+        comp_gap = debug_info.comp_gap
+        dist_gap = debug_info.dist_gap
+        wx = debug_info.wx
+        wy = debug_info.wy
         shift_x = self.shift_x
         shift_y = self.shift_y
         R_cam = self.R_cam
