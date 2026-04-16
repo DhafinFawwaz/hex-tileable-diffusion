@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hex-tileable-diffusion"
+version = "0.1.0"
+description = "Hexagonal tileable diffusion pipeline built on top of diffusers."
+requires-python = ">=3.10"
+authors = [{ name = "Dhafin Fawwaz" }]
+dependencies = [
+    "diffusers>=0.32.0,<1.0",
+    "transformers>=4.40.0,<5.0",
+    "accelerate>=0.30.0,<2.0",
+    "safetensors>=0.4.0,<1.0",
+    "Pillow>=10.0.0,<12.0",
+    "numpy>=1.24.0,<3.0",
+    "scipy>=1.11.0,<2.0",
+    "opencv-python-headless>=4.8.0,<5.0",
+    "matplotlib>=3.7.0,<4.0",
+    "peft>=0.10.0,<1.0",
+]
+
+[project.optional-dependencies]
+dev = ["mypy>=1.10.0", "types-Pillow"]
+
+[project.urls]
+Repository = "https://github.com/DhafinFawwaz/hex-tileable-diffusion"
+
+[tool.setuptools.packages.find]
+include = ["hex_tileable_diffusion*"]
+exclude = ["demos*", "tests*"]

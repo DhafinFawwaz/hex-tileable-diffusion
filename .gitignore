@@ -3,10 +3,49 @@
 .cache
 demos
 
-
-
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
 *$py.class
+
+# Packaging / build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+wheels/
+pip-wheel-metadata/
+.eggs/
+MANIFEST
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environments
+.env
+.env.*
+!.env.example
+.python-version
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local scratch
+mainold.py
+mainold.ipynb
