@@ -1,9 +1,12 @@
-from typing import Literal, TypeAlias, Union
-from PIL import Image
-import numpy as np
-import torch
+from typing import Literal, TypeAlias, Union, TYPE_CHECKING, Any
 
-ImageInput: TypeAlias = Union[str, Image.Image, np.ndarray, torch.Tensor]
+if TYPE_CHECKING:
+    from PIL import Image
+    import numpy as np
+    import torch
+    ImageInput: TypeAlias = Union[str, Image.Image, np.ndarray, torch.Tensor]
+else:
+    ImageInput = Any
 
 NormOffsetList: TypeAlias = list[tuple[float, float]]
 
