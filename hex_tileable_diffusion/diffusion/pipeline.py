@@ -7,10 +7,7 @@ from PIL import Image
 from hex_tileable_diffusion.config import (
     ControlNetConfig,
     DiffusionConfig,
-    ExteriorPassConfig,
-    FinetuneConfig,
     IPAdapterConfig,
-    PostprocessConfig,
 )
 from hex_tileable_diffusion.conditioning.controlnet import load_controlnet
 from hex_tileable_diffusion.conditioning.ip_adapter import (
@@ -33,8 +30,8 @@ class HexInpaintPipeline:
     def __init__(
         self,
         diffusion_config: DiffusionConfig,
-        controlnet_config: ControlNetConfig = ControlNetConfig(),
-        ip_adapter_config: IPAdapterConfig = IPAdapterConfig(),
+        controlnet_config: ControlNetConfig | None = None,
+        ip_adapter_config: IPAdapterConfig | None = None,
         cache_dir: str | None = ".cache",
     ) -> None:
         self._diffusion_config = diffusion_config
@@ -48,7 +45,7 @@ class HexInpaintPipeline:
         self._ip_adapter_model_id: str | None = None
         self._ip_adapter_scale: float | None = None
         self._scheduler_name = ""
-        self._controlnet_model_id = controlnet_config.model_id if controlnet_config.enabled else None
+        self._controlnet_model_id = controlnet_config.model_id if controlnet_config is not None else None
         self.device = torch.device("cpu")
 
 
@@ -89,10 +86,11 @@ class HexInpaintPipeline:
             self._scheduler_name = (f"{orig_name}: {type(self.pipe.scheduler).__name__}")
 
         # ControlNet
-        self.controlnet = load_controlnet(self._controlnet_config, cache_dir=cache_dir)
+        if self._controlnet_config is not None:
+            self.controlnet = load_controlnet(self._controlnet_config, cache_dir=cache_dir)
 
         ip_cfg = self._ip_adapter_config
-        if ip_cfg.enabled and ip_cfg.model_id:
+        if ip_cfg is not None:
             load_ip_adapter(self.pipe, ip_cfg, cache_dir=cache_dir)
             self.pipe.set_ip_adapter_scale(ip_cfg.scale)
             self._ip_adapter_model_id = ip_cfg.model_id
@@ -154,7 +152,11 @@ class HexInpaintPipeline:
             guidance_schedule=dc.guidance_schedule,
             controlnet=cn,
             control_image=control_image,
-            controlnet_conditioning_scale=self._controlnet_config.conditioning_scale,
+            controlnet_conditioning_scale=(
+                self._controlnet_config.conditioning_scale
+                if self._controlnet_config is not None
+                else 1.0
+            ),
             ip_adapter_image_embeds=self.ip_adapter_embeds,
             use_latent_color_correction=use_latent_color_correction,
             vae_fp32=dc.vae_fp32,

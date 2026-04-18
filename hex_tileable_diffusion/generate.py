@@ -76,13 +76,13 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
     observer.on_log("info", "Diffusion pipeline loaded successfully")
 
     # IP Adapter
-    if config.ip_adapter.enabled:
+    if config.ip_adapter is not None:
         ref_img = Image.open(str(config.image_path)).convert("RGB")
         hex_pipe.encode_ip_reference(ref_img, config.diffusion.guidance_scale)
         observer.on_log("info", f"IP-Adapter reference encoded from input (scale={config.ip_adapter.scale})")
 
     # TODO: Finetuning
-    if config.exterior.enabled:
+    if config.exterior is not None:
         inner_result = _two_pass_inpaint(hex_pipe, wrapper, rgb_arr, mask_arr, image_arr, config, observer)
     else:
         inner_result = _simultaneous_inpaint(hex_pipe, wrapper, rgb_arr, mask_arr, image_arr, config, observer)
@@ -129,6 +129,7 @@ def _simultaneous_inpaint(
     dc = config.diffusion
     gen_W, gen_H = wrapper.gen_W, wrapper.gen_H
     output_path = config.output_path
+    use_lcc = config.postprocess is not None and config.postprocess.use_latent_color_correction
 
     observer.on_log("info", "Starting simultaneous inpaint")
 
@@ -140,7 +141,7 @@ def _simultaneous_inpaint(
         gen_size=(gen_W, gen_H),
         wrapper=wrapper,
         control_image=image_arr,
-        use_latent_color_correction=config.postprocess.use_latent_color_correction,
+        use_latent_color_correction=use_lcc,
         observer=observer,
         output_dir=output_path,
     )
@@ -164,6 +165,7 @@ def _two_pass_inpaint(
     gen_W, gen_H = wrapper.gen_W, wrapper.gen_H
     ext_seed = ext.seed if ext.seed is not None else dc.seed
     output_path = config.output_path
+    use_lcc = config.postprocess is not None and config.postprocess.use_latent_color_correction
 
     # Pass 1: fill gaps, full mask, no rolling, no ControlNet
     observer.on_log("info", "Pass 1: exterior fill (no rolling, no ControlNet)")
@@ -171,7 +173,7 @@ def _two_pass_inpaint(
 
     # Temporarily disable IP Adapter for pass 1 if configured
     saved_ip_embeds = None
-    if config.ip_adapter.enabled and not config.ip_adapter.use_on_pass1:
+    if config.ip_adapter is not None and not config.ip_adapter.use_on_pass1:
         saved_ip_embeds = hex_pipe.ip_adapter_embeds
         hex_pipe.ip_adapter_embeds = None
 
@@ -188,7 +190,7 @@ def _two_pass_inpaint(
         seed=ext_seed,
         use_rolling_noise=False,
         use_controlnet=False,
-        use_latent_color_correction=config.postprocess.use_latent_color_correction,
+        use_latent_color_correction=use_lcc,
         observer=observer,
         output_dir=output_path,
     )
@@ -201,7 +203,7 @@ def _two_pass_inpaint(
     observer.on_log("info", "Pass 1 completed")
 
     # Reencode IP Adapter reference from pass 1 result
-    if config.ip_adapter.enabled and config.ip_adapter.use_pass1_reference_for_pass2:
+    if config.ip_adapter is not None and config.ip_adapter.use_pass1_reference_for_pass2:
         ref_img = Image.fromarray(pass1)
         hex_pipe.encode_ip_reference(ref_img, config.diffusion.guidance_scale)
         observer.on_log("info", f"IP-Adapter reference re-encoded from pass 1 (scale={config.ip_adapter.scale})")
@@ -244,7 +246,7 @@ def _two_pass_inpaint(
         gen_size=(gen_W, gen_H),
         wrapper=wrapper,
         control_image=ctrl_composite,
-        use_latent_color_correction=config.postprocess.use_latent_color_correction,
+        use_latent_color_correction=use_lcc,
         observer=observer,
         output_dir=output_path,
     )

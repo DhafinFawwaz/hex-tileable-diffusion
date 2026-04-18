@@ -140,6 +140,10 @@ def run_rolling_inpaint(
     _ts("masked_lat", masked_lat)
     print(f"  [DBG] R_lat={R_lat:.6f} R_pixel={R_pixel:.6f} actual_steps={actual_steps}")
 
+    num_dd_steps = len(timesteps)
+    dd_thresholds = 1.0 - torch.arange(1, num_dd_steps + 1, dtype=blend_mask.dtype, device=dev) / num_dd_steps  # [(N-1)/N ... 0]
+    dd_step_masks = (blend_mask > dd_thresholds.view(-1, 1, 1, 1)).to(dtype=blend_mask.dtype)  # per-step binary activation
+
     # Denoising loop
     observer.on_log("debug", f"Starting denoising loop ({actual_steps} steps)")
     with torch.no_grad():
@@ -147,6 +151,15 @@ def run_rolling_inpaint(
             cfg = guidance_scale
             if guidance_schedule and len(guidance_schedule) > 1:
                 cfg = interpolate_schedule(guidance_schedule, i, actual_steps)
+
+            # Differential Diffusion. inject noised original for not yet active pixels
+            dd_mask_i = dd_step_masks[i]  # 1=denoising, 0=frozen
+            init_at_t = pipe.scheduler.add_noise(image_latents, noise, torch.tensor([t]))  # original at current noise level
+            if use_rolling_noise and needs_hex_fill:
+                init_at_t = hex_copy_fill_tensor(init_at_t, R_lat)
+            latents = dd_mask_i * latents + (1 - dd_mask_i) * init_at_t  # staggered activation
+            if use_rolling_noise and needs_hex_fill:
+                latents = hex_copy_fill_tensor(latents, R_lat)
 
             # Roll tensors
             if use_rolling_noise:
@@ -238,17 +251,11 @@ def run_rolling_inpaint(
             else:
                 latents = lat_r
 
-            # Blend: preserve original where mask=0, use denoised where mask=1
-            if i < len(timesteps) - 1:
-                init_proper = pipe.scheduler.add_noise(image_latents, noise, torch.tensor([timesteps[i + 1]]))
-            else:
-                init_proper = image_latents
-            if use_rolling_noise and needs_hex_fill:
-                init_proper = hex_copy_fill_tensor(init_proper, R_lat)
-            latents = (1 - blend_mask) * init_proper + blend_mask * latents
 
-            if use_rolling_noise and needs_hex_fill:
-                latents = hex_copy_fill_tensor(latents, R_lat)
+    # Differential Diffusion: final blend to lock mask=0 to original
+    latents = blend_mask * latents + (1 - blend_mask) * image_latents  # hard clamp at boundary
+    if use_rolling_noise and needs_hex_fill:
+        latents = hex_copy_fill_tensor(latents, R_lat)
 
     # Latent-space color correction via AdaIN
     if use_latent_color_correction:

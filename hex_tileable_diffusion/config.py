@@ -42,16 +42,14 @@ class DiffusionConfig:
 @dataclass(frozen=True)
 class ControlNetConfig:
 
-    enabled: bool = False
-    model_id: ControlNetModelId | str | None = None
+    model_id: ControlNetModelId | str
     conditioning_scale: float = 0.8 # >= 0.0
 
 
 @dataclass(frozen=True)
 class IPAdapterConfig:
 
-    enabled: bool = False
-    model_id: IPAdapterModelId | str | None = None
+    model_id: IPAdapterModelId | str
     subfolder: str = "models"
     weight_name: IPAdapterWeightName | str = "ip-adapter_sd15.bin"
     scale: float = 0.85 # >= 0.0 (but recommended <= 1.5)
@@ -63,7 +61,6 @@ class IPAdapterConfig:
 @dataclass(frozen=True)
 class FinetuneConfig:
 
-    enabled: bool = False
     steps: int = 300 # >= 1
     lr: float = 5e-5 # > 0.0
     crop_size: int | None = None # >= 64
@@ -82,7 +79,6 @@ class FinetuneConfig:
 @dataclass(frozen=True)
 class ExteriorPassConfig:
 
-    enabled: bool = False
     strength: float = 1.0 # [0.0, 1.0]
     steps: int = 30 # >= 1
     guidance_scale: float = 3.0 # >= 1.0
@@ -115,9 +111,9 @@ class HexTileableDiffusionConfig:
 
     wrapper: HexWrapperConfig = field(default_factory=HexWrapperConfig)
     diffusion: DiffusionConfig = field(default_factory=DiffusionConfig)
-    controlnet: ControlNetConfig = field(default_factory=ControlNetConfig)
-    ip_adapter: IPAdapterConfig = field(default_factory=IPAdapterConfig)
-    finetune: FinetuneConfig = field(default_factory=FinetuneConfig)
-    exterior: ExteriorPassConfig = field(default_factory=ExteriorPassConfig)
-    postprocess: PostprocessConfig = field(default_factory=PostprocessConfig)
+    controlnet: ControlNetConfig | None = None
+    ip_adapter: IPAdapterConfig | None = None
+    finetune: FinetuneConfig | None = None
+    exterior: ExteriorPassConfig | None = None
+    postprocess: PostprocessConfig | None = None
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
