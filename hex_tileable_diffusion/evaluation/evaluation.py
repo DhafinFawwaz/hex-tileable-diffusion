@@ -41,8 +41,9 @@ class HexEvaluation:
         reference_img_arr: np.ndarray,
         generated_img_arr: np.ndarray,
         hex_radius: float | None = None,
+        metrics: Metrics | None = None,
     ):
-        m = Metrics()
+        m = metrics if metrics is not None else Metrics()
         H, W = reference_img_arr.shape[:2]
 
         if hex_radius is not None:
