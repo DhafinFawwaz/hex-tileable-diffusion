@@ -77,7 +77,7 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
 
     # IP Adapter
     if config.ip_adapter is not None:
-        ref_img = Image.open(str(config.image_path)).convert("RGB")
+        ref_img = Image.fromarray(image_arr).convert("RGB")
         hex_pipe.encode_ip_reference(ref_img, config.diffusion.guidance_scale)
         observer.on_log("info", f"IP-Adapter reference encoded from input (scale={config.ip_adapter.scale})")
 
