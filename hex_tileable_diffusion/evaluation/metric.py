@@ -1,3 +1,6 @@
+import urllib.request
+from pathlib import Path
+
 import torch, numpy as np
 from PIL import Image
 from torchvision import transforms
@@ -7,25 +10,45 @@ from pytorch_fid.inception import InceptionV3
 from scipy import linalg
 from textile import Textile
 
+DEFAULT_TEXTILE_MODEL_URL = "https://github.com/DhafinFawwaz/hex-tileable-diffusion-textile/releases/download/v1.0.0/textile.pth"
+DEFAULT_TEXTILE_MODEL_PATH = "textile/models/textile.pth"
+
 
 class Metrics:
 
-    def __init__(self, device: str | torch.device | None = None):
+    def __init__(
+        self,
+        device: str | torch.device | None = None,
+        textile_model_url: str = DEFAULT_TEXTILE_MODEL_URL,
+        textile_model_path: str = DEFAULT_TEXTILE_MODEL_PATH,
+    ):
         self.device = torch.device(device) if device is not None else torch.device(
             "cuda" if torch.cuda.is_available() else "cpu",
         )
+        self._textile_model_url = textile_model_url
+        self._textile_model_path = textile_model_path
         self._textile: Textile | None = None
         self._lpips_net: lpips.LPIPS | None = None
         self._incept: InceptionV3 | None = None
 
     def textile(self, gen) -> float:
         if self._textile is None:
-            self._textile = Textile()
+            self._download_textile_model_if_needed()
+            self._textile = Textile(model_path=self._textile_model_path)
         if isinstance(gen, Image.Image):
             gen = transforms.ToTensor()(gen.convert("RGB")).unsqueeze(0)
         elif isinstance(gen, np.ndarray):
             gen = torch.from_numpy(gen).permute(2, 0, 1).unsqueeze(0).float() / 255.0
         return float(self._textile(gen.to(self.device)).item())
+
+    def _download_textile_model_if_needed(self) -> None:
+        path = Path(self._textile_model_path)
+        if path.exists():
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Downloading textile model from {self._textile_model_url} -> {path}")
+        urllib.request.urlretrieve(self._textile_model_url, str(path))
+        print("Done.")
 
     def ssim(self, ref: torch.Tensor, gen: torch.Tensor) -> float:
         # piq.ssim expects [0,1] tensors
