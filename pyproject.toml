@@ -28,8 +28,7 @@ evaluation = [
     "piq>=0.7.0,<1.0",
     "lpips>=0.1.4,<1.0",
     "pytorch-fid>=0.3.0,<1.0",
-    # Note: hex_tileable_diffusion.evaluation.metric also imports `from textile import Textile`.
-    # The `textile` package is not on PyPI; install it separately.
+    "textile-metric>=0.0.10,<1.0",
 ]
 dev = ["mypy>=1.10.0", "types-Pillow"]
 
