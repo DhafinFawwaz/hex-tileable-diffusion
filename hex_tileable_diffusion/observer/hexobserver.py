@@ -8,7 +8,7 @@ from IPython.display import display
 
 from hex_tileable_diffusion.types import LogLevel
 from hex_tileable_diffusion.core.constant import SQRT3
-from hex_tileable_diffusion.core.geometry import _hex_sdf, _tile_image_hexagonally, _tile_image_square
+from hex_tileable_diffusion.core.geometry import _hex_sdf, _tile_image_hexagonally, _tile_image_square, _pixel_to_hex, _cube_round, _hex_to_pixel
 from hex_tileable_diffusion.core.hexwrapper import HexWrapper, WrapDebugInfo
 from hex_tileable_diffusion.util.decode import decode_latents_to_image
 
@@ -68,6 +68,26 @@ def _draw_hex_contour(img_arr: np.ndarray, R: float, thickness: float = 2.0, col
     gy, gx = np.mgrid[0:h, 0:w]
     hx = gx.astype(np.float64) - w / 2.0
     hy = gy.astype(np.float64) - h / 2.0
+    r_inscribed = (SQRT3 / 2.0) * R
+    sdf = _hex_sdf(hx, hy, r_inscribed)
+    contour_mask = np.abs(sdf) < thickness
+    result[contour_mask] = color
+    return result
+
+
+def _draw_hex_grid_contour(img_arr: np.ndarray, R: float, thickness: float = 2.0, color: tuple[int, int, int] = (255, 0, 0), offset_x: float = 0.0, offset_y: float = 0.0) -> np.ndarray:
+    h, w = img_arr.shape[:2]
+    result = img_arr.copy()
+    cx_img = w / 2.0 - offset_x
+    cy_img = h / 2.0 - offset_y
+    fq_c, fr_c = _pixel_to_hex(np.array([cx_img]), np.array([cy_img]), R)
+    rq_c, rr_c = _cube_round(fq_c, fr_c)
+    px_c, py_c = _hex_to_pixel(rq_c.astype(np.float64), rr_c.astype(np.float64), R)
+    center_x = float(px_c[0]) + offset_x
+    center_y = float(py_c[0]) + offset_y
+    gy, gx = np.mgrid[0:h, 0:w]
+    hx = gx.astype(np.float64) - center_x
+    hy = gy.astype(np.float64) - center_y
     r_inscribed = (SQRT3 / 2.0) * R
     sdf = _hex_sdf(hx, hy, r_inscribed)
     contour_mask = np.abs(sdf) < thickness
@@ -214,7 +234,7 @@ class HexObserver():
         row1 = [hex_tiled_input, hex_tiled_output]
 
         sq_tiled_input = _tile_image_square(image_arr, tile_w, tile_h).astype(np.uint8)
-        hex_tiled_output_lines = _draw_hex_contour(hex_tiled_output.copy(), R_final, thickness=1.5)
+        hex_tiled_output_lines = _draw_hex_grid_contour(hex_tiled_output.copy(), R_final, thickness=1.5)
         row2 = [sq_tiled_input, hex_tiled_output_lines]
 
         row3 = [image_arr[..., :3], result[..., :3]]
