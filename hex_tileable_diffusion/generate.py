@@ -64,7 +64,7 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
 
     observer.on_wrapped_finished(wrapper, rgb_arr, mask_arr, wrap_debug, config.visualization.hex_outline_thickness)
 
-
+    observer.on_log("info", "Loading diffusion pipeline...")
     hex_pipe = HexInpaintPipeline(
         diffusion_config=config.diffusion,
         controlnet_config=config.controlnet,
@@ -113,6 +113,7 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
     observer.on_log("info", f"Saving tiled result to {tiled_output_path}")
 
     observer.on_finished(image_arr, result, R_final, output_size)
+    observer.on_log("info", "Generation completed")
 
     return result, GenerationInfo(result=result, R_final=R_final, image_arr=image_arr, output_size=output_size)
 

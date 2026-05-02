@@ -270,6 +270,7 @@ def run_rolling_inpaint(
             if use_rolling_noise and needs_hex_fill:
                 latents = hex_copy_fill_tensor(latents, R_lat)
 
+    observer.on_log("debug", "Denoising loop completed, decoding latents to image...")
     # Decode latents to pixels
     with torch.no_grad():
         decode_latents = latents / pipe.vae.config.scaling_factor

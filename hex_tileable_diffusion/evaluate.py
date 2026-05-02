@@ -4,11 +4,12 @@ from hex_tileable_diffusion.config import HexWrapperConfig
 from hex_tileable_diffusion.core.constant import SQRT3
 from hex_tileable_diffusion.evaluation.evaluation import HexEvaluation
 from hex_tileable_diffusion.evaluation.metric import Metrics
+from hex_tileable_diffusion.observer.hexobserver import HexObserver
 from hex_tileable_diffusion.types import ImageInput
 from hex_tileable_diffusion.util.image import load_image
 
 
-def evaluate_hex_tileable_diffusion_texture(input: ImageInput, output: ImageInput, wrapper_config: HexWrapperConfig, metrics: Metrics | None = None) -> HexEvaluation:
+def evaluate_hex_tileable_diffusion_texture(input: ImageInput, output: ImageInput, wrapper_config: HexWrapperConfig, metrics: Metrics | None = None, observer: HexObserver | None = None) -> HexEvaluation:
     output_size = wrapper_config.output_size
     ref_arr = load_image(input, output_size)
     gen_arr = load_image(output, output_size)
@@ -17,6 +18,7 @@ def evaluate_hex_tileable_diffusion_texture(input: ImageInput, output: ImageInpu
         ref_arr, gen_arr,
         hex_radius=_compute_R_final(wrapper_config),
         metrics=metrics,
+        observer=observer,
     )
 
 

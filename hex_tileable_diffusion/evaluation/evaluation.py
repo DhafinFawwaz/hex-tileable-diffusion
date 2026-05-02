@@ -3,6 +3,7 @@ import torch
 from PIL import Image
 
 from hex_tileable_diffusion.core.geometry import _tile_image_hexagonally
+from hex_tileable_diffusion.observer.hexobserver import HexObserver
 
 from .metric import Metrics
 
@@ -42,6 +43,7 @@ class HexEvaluation:
         generated_img_arr: np.ndarray,
         hex_radius: float | None = None,
         metrics: Metrics | None = None,
+        observer: HexObserver | None = None,
     ):
         m = metrics if metrics is not None else Metrics()
         H, W = reference_img_arr.shape[:2]
@@ -56,10 +58,21 @@ class HexEvaluation:
         ref_t = _to_tensor(reference_img_arr)
         gen_t = _to_tensor(sim_gen)
 
+        if observer is not None: observer.on_log("info", "Calculating SSIM Score...")
         self.ssim_score = m.ssim(ref_t, gen_t)
+        if observer is not None: observer.on_log("info", f"SSIM = {self.ssim_score:.6f}")
+
+        if observer is not None: observer.on_log("info", "Calculating LPIPS Score...")
         self.lpips_score = m.lpips(ref_t, gen_t)
+        if observer is not None: observer.on_log("info", f"LPIPS = {self.lpips_score:.6f}")
+
+        if observer is not None: observer.on_log("info", "Calculating SI-FID Score...")
         self.si_fid_score = m.si_fid(ref_t, gen_t)
+        if observer is not None: observer.on_log("info", f"SI-FID = {self.si_fid_score:.6f}")
+
+        if observer is not None: observer.on_log("info", "Calculating Textile Score...")
         self.textile_score = m.textile(tex_gen)
+        if observer is not None: observer.on_log("info", f"Textile = {self.textile_score:.6f}")
 
 
 if __name__ == "__main__":
