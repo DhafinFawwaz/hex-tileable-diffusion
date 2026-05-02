@@ -131,14 +131,14 @@ def run_rolling_inpaint(
             ctrl_img_tensor = hex_copy_fill_tensor(ctrl_img_tensor, R_pixel)
 
     def _ts(name, t):
-        print(f"  [DBG] {name}: shape={list(t.shape)} mean={t.float().mean().item():.6f} std={t.float().std().item():.6f} min={t.float().min().item():.6f} max={t.float().max().item():.6f}")
+        print(f"  [DEBUG] {name}: shape={list(t.shape)} mean={t.float().mean().item():.6f} std={t.float().std().item():.6f} min={t.float().min().item():.6f} max={t.float().max().item():.6f}")
     _ts("latents", latents)
     _ts("image_latents", image_latents)
     _ts("noise", noise)
     _ts("prep_mask", prep_mask)
     _ts("blend_mask", blend_mask)
     _ts("masked_lat", masked_lat)
-    print(f"  [DBG] R_lat={R_lat:.6f} R_pixel={R_pixel:.6f} actual_steps={actual_steps}")
+    print(f"  [DEBUG] R_lat={R_lat:.6f} R_pixel={R_pixel:.6f} actual_steps={actual_steps}")
 
     num_dd_steps = len(timesteps)
     dd_thresholds = 1.0 - torch.arange(1, num_dd_steps + 1, dtype=blend_mask.dtype, device=dev) / num_dd_steps  # [(N-1)/N ... 0]
