@@ -113,7 +113,7 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
         observer.on_after_unwrap(wrapper, inner_result, result, R_final, output_size)
 
         result_pre_pp = result
-        if config.postprocess is not None and config.postprocess.use_color_postprocess:
+        if config.postprocess is not None:
             pc = config.postprocess
             result = low_freq_color_transfer(
                 result, image_arr,

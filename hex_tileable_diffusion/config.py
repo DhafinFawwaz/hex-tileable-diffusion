@@ -87,7 +87,6 @@ class ExteriorPassConfig:
 @dataclass(frozen=True)
 class PostprocessConfig:
 
-    use_color_postprocess: bool = False
     color_postprocess_strength: float = 1.0 # [0.0, 1.0]
     color_postprocess_blur_sigma: float = 32.0 # > 0.0
 
