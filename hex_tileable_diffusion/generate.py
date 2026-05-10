@@ -8,7 +8,9 @@ from PIL import Image
 from hex_tileable_diffusion.config import HexTileableDiffusionConfig
 from hex_tileable_diffusion.observer.hexobserver import HexObserver
 from hex_tileable_diffusion.util.image import load_image
+from hex_tileable_diffusion.util.color import low_freq_color_transfer, reinhard_color_transfer
 from hex_tileable_diffusion.diffusion.pipeline import HexInpaintPipeline
+from hex_tileable_diffusion.diffusion.finetuning import cleanup_finetune, finetune_pipeline_on_input
 from hex_tileable_diffusion.core.hexwrapper import HexWrapper
 from hex_tileable_diffusion.core.hexroller import _in_origin_hex
 from hex_tileable_diffusion.core.geometry import _tile_image_hexagonally
@@ -81,41 +83,69 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
         hex_pipe.encode_ip_reference(ref_img, config.diffusion.guidance_scale)
         observer.on_log("info", f"IP-Adapter reference encoded from input (scale={config.ip_adapter.scale})")
 
-    # TODO: Finetuning
-    if config.exterior is not None:
-        inner_result = _two_pass_inpaint(hex_pipe, wrapper, rgb_arr, mask_arr, image_arr, config, observer)
-    else:
-        inner_result = _simultaneous_inpaint(hex_pipe, wrapper, rgb_arr, mask_arr, image_arr, config, observer)
+    finetune_result = None
+    try:
+        if config.finetune is not None:
+            observer.on_log("info", "Finetuning pipeline on input image...")
+            finetune_result = finetune_pipeline_on_input(
+                pipe=hex_pipe.pipe,
+                input_image=Image.fromarray(image_arr).convert("RGB"),
+                prompt=config.diffusion.prompt,
+                config=config.finetune,
+                seed=config.diffusion.seed,
+                observer=observer,
+            )
 
-    observer.on_after_inpaint(
-        rgb_arr=rgb_arr,
-        mask_arr=mask_arr,
-        result=inner_result,
-    )
+        if config.exterior is not None:
+            inner_result = _two_pass_inpaint(hex_pipe, wrapper, rgb_arr, mask_arr, image_arr, config, observer)
+        else:
+            inner_result = _simultaneous_inpaint(hex_pipe, wrapper, rgb_arr, mask_arr, image_arr, config, observer)
 
-    # Unwrap
-    result, R_final = wrapper.unwrap(inner_result, output_size=output_size)
+        observer.on_after_inpaint(
+            rgb_arr=rgb_arr,
+            mask_arr=mask_arr,
+            result=inner_result,
+        )
 
-    observer.on_after_unwrap(wrapper, inner_result, result, R_final, output_size)
+        # Unwrap
+        result, R_final = wrapper.unwrap(inner_result, output_size=output_size)
 
-    # TODO: Postprocess
-    observer.on_after_postprocess(result, result)
+        observer.on_after_unwrap(wrapper, inner_result, result, R_final, output_size)
 
-    observer.on_log("info", f"Saving final result to {output_path}")
-    img = Image.fromarray(result)
-    img.save(output_path)
+        result_pre_pp = result
+        if config.postprocess is not None and config.postprocess.use_color_postprocess:
+            pc = config.postprocess
+            if pc.color_postprocess_mode == "low_freq":
+                result = low_freq_color_transfer(
+                    result, image_arr,
+                    blur_sigma=pc.color_postprocess_blur_sigma,
+                    strength=pc.color_postprocess_strength,
+                )
+            else:
+                result = reinhard_color_transfer(
+                    result, image_arr,
+                    strength=pc.color_postprocess_strength,
+                )
+        observer.on_after_postprocess(result_pre_pp, result)
 
-    # _tile_image_hexagonally
-    tiled_arr = _tile_image_hexagonally(result, output_size*4, output_size*4, R_final)
-    tiled_img = Image.fromarray(tiled_arr.astype(np.uint8))
-    tiled_output_path = os.path.splitext(output_path)[0] + "_tiled.png"
-    tiled_img.save(tiled_output_path)
-    observer.on_log("info", f"Saving tiled result to {tiled_output_path}")
+        observer.on_log("info", f"Saving final result to {output_path}")
+        img = Image.fromarray(result)
+        img.save(output_path)
 
-    observer.on_finished(image_arr, result, R_final, output_size)
-    observer.on_log("info", "Generation completed")
+        # _tile_image_hexagonally
+        tiled_arr = _tile_image_hexagonally(result, output_size*4, output_size*4, R_final)
+        tiled_img = Image.fromarray(tiled_arr.astype(np.uint8))
+        tiled_output_path = os.path.splitext(output_path)[0] + "_tiled.png"
+        tiled_img.save(tiled_output_path)
+        observer.on_log("info", f"Saving tiled result to {tiled_output_path}")
 
-    return result, GenerationInfo(result=result, R_final=R_final, image_arr=image_arr, output_size=output_size)
+        observer.on_finished(image_arr, result, R_final, output_size)
+        observer.on_log("info", "Generation completed")
+
+        return result, GenerationInfo(result=result, R_final=R_final, image_arr=image_arr, output_size=output_size)
+    finally:
+        if finetune_result is not None:
+            cleanup_finetune(hex_pipe.pipe, finetune_result, observer)
 
 
 def _simultaneous_inpaint(
@@ -134,6 +164,11 @@ def _simultaneous_inpaint(
 
     observer.on_log("info", "Starting simultaneous inpaint")
 
+    # The wrapper output has BLACK in the gap regions (mask=1). With strength<1.0,
+    # diffusers initializes latents = noisy(image_latents), which pins denoising
+    # toward black at the gaps and the model can't escape it (especially with an
+    # empty prompt and no IP Adapter). Force strength=1.0 so latents start from
+    # pure noise (is_strength_max path).
     inner_result = hex_pipe.inpaint(
         source_image=rgb_arr,
         mask_image=mask_arr,
@@ -141,6 +176,7 @@ def _simultaneous_inpaint(
         negative_prompt=dc.negative_prompt,
         gen_size=(gen_W, gen_H),
         wrapper=wrapper,
+        strength=1.0,
         control_image=image_arr,
         use_latent_color_correction=use_lcc,
         observer=observer,

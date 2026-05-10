@@ -145,8 +145,24 @@ def hex_copy_fill_tensor(tensor: torch.Tensor, R: float, source: torch.Tensor | 
     out_ys, out_xs = np.where(outside)
     ox_o, oy_o = ox[outside], oy[outside]
     wx, wy = _wrap_to_origin_hex(ox_o, oy_o, R)
-    copy_src_x = np.clip(np.round(wx + cx).astype(np.int32), 0, W - 1)
-    copy_src_y = np.clip(np.round(wy + cy).astype(np.int32), 0, H - 1)
+    float_x = wx + cx
+    float_y = wy + cy
+    copy_src_x = np.clip(np.round(float_x).astype(np.int32), 0, W - 1)
+    copy_src_y = np.clip(np.round(float_y).astype(np.int32), 0, H - 1)
+
+    # Snap sources that round to outside hex_mask to nearest inside-hex pixel.
+    # Without this, boundary rounding from cube_round + np.round can land on an
+    # outside-hex pixel, and we'd read stale/garbage content from there (and
+    # propagate it on subsequent fills). Same idea as _resolve_collisions in hex_roll.
+    outside_src = ~hex_mask[copy_src_y, copy_src_x]
+    if outside_src.any():
+        hex_ys, hex_xs = np.where(hex_mask)
+        for i in np.where(outside_src)[0]:
+            dists = (hex_xs - float_x[i]) ** 2 + (hex_ys - float_y[i]) ** 2
+            nearest = np.argmin(dists)
+            copy_src_x[i] = hex_xs[nearest]
+            copy_src_y[i] = hex_ys[nearest]
+
     result = tensor.clone()
 
     dst_y = torch.from_numpy(out_ys).to(tensor.device).long()
@@ -160,11 +176,19 @@ def hex_copy_fill_tensor(tensor: torch.Tensor, R: float, source: torch.Tensor | 
 
 def roll_tensor_mode(tensor: torch.Tensor, dx: int, dy: int, R: float, roll_mode: RollMode, original: torch.Tensor | None = None) -> torch.Tensor:
     if roll_mode == "hex_copy":
+        # Source MUST be the rolled tensor `r`, not the un-rolled `original`/`tensor`.
+        # Outside-phantom positions wrap to inside-phantom positions; reading those
+        # from `r` keeps the wrap copies at the same (rolled) alignment as the inside.
+        # Passing `original` here makes the inside rolled but the outside un-rolled,
+        # so the UNet sees a per-step offset jump across the phantom hex boundary —
+        # which surfaces as small seams along the hex tile edges in the final output.
         r = hex_roll_tensor(tensor, dx, dy, R)
-        return hex_copy_fill_tensor(r, R, source=original if original is not None else tensor)
+        return hex_copy_fill_tensor(r, R)
     elif roll_mode == "hex_copy_no_roll":
+        # dx == dy == 0, so r and the un-rolled tensor are identical here; either
+        # source is correct, but use the default for symmetry with hex_copy.
         r = hex_roll_tensor(tensor, 0, 0, R)
-        return hex_copy_fill_tensor(r, R, source=original if original is not None else tensor)
+        return hex_copy_fill_tensor(r, R)
     elif roll_mode == "hex":
         return hex_roll_tensor(tensor, dx, dy, R)
     else:  # roll_mode == "square"
