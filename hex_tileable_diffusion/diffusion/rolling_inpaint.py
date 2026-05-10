@@ -33,7 +33,6 @@ def run_rolling_inpaint(
     control_image: np.ndarray | None = None,
     controlnet_conditioning_scale: float = 0.8,
     ip_adapter_image_embeds: list[torch.Tensor] | None = None,
-    use_latent_color_correction: bool = False,
     vae_fp32: bool = False,
     observer: HexObserver = None,
     output_dir: str = ".",
@@ -256,19 +255,6 @@ def run_rolling_inpaint(
     latents = blend_mask * latents + (1 - blend_mask) * image_latents  # hard clamp at boundary
     if use_rolling_noise and needs_hex_fill:
         latents = hex_copy_fill_tensor(latents, R_lat)
-
-    # Latent-space color correction via AdaIN
-    if use_latent_color_correction:
-        with torch.no_grad():
-            eps = 1e-6
-            tgt_mean = image_latents.mean(dim=[2, 3], keepdim=True)
-            tgt_std = image_latents.std(dim=[2, 3], keepdim=True) + eps
-            src_mean = latents.mean(dim=[2, 3], keepdim=True)
-            src_std = latents.std(dim=[2, 3], keepdim=True) + eps
-            corrected = (latents - src_mean) / src_std * tgt_std + tgt_mean
-            latents = (1 - blend_mask) * latents + blend_mask * corrected
-            if use_rolling_noise and needs_hex_fill:
-                latents = hex_copy_fill_tensor(latents, R_lat)
 
     observer.on_log("debug", "Denoising loop completed, decoding latents to image...")
     # Decode latents to pixels

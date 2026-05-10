@@ -73,7 +73,6 @@ class FinetuneConfig:
     use_prompt_conditioning: bool = True
     prompt_dropout_prob: float = 0.1 # [0.0, 1.0]
     log_interval: int = 50 # >= 1
-    cleanup_after: bool = False
 
 
 @dataclass(frozen=True)
@@ -88,10 +87,9 @@ class ExteriorPassConfig:
 @dataclass(frozen=True)
 class PostprocessConfig:
 
-    use_latent_color_correction: bool = True
-    use_pixel_pasteback: bool = True
-    pasteback_feather_px: int = 12 # >= 0
-    use_color_postprocess: bool = True
+    use_color_postprocess: bool = False
+    color_postprocess_strength: float = 1.0 # [0.0, 1.0]
+    color_postprocess_blur_sigma: float = 32.0 # > 0.0
 
 
 @dataclass(frozen=True)

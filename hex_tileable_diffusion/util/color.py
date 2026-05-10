@@ -31,18 +31,6 @@ def _blur_lab(lab: np.ndarray, sigma: float) -> np.ndarray:
     )
 
 
-def reinhard_color_transfer(
-    source_rgb: np.ndarray,
-    reference_rgb: np.ndarray,
-    strength: float = 1.0,
-) -> np.ndarray:
-    src_lab = _rgb_to_lab(source_rgb)
-    ref_lab = _rgb_to_lab(reference_rgb)
-    matched = _match_stats(src_lab, ref_lab)
-    blended = (1.0 - strength) * src_lab + strength * matched
-    return _lab_to_rgb(blended)
-
-
 def low_freq_color_transfer(
     source_rgb: np.ndarray,
     reference_rgb: np.ndarray,

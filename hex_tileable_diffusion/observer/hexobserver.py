@@ -217,13 +217,13 @@ class HexObserver():
         print("Inpainted (hex contour) | Unwrapped | Hex Cropped")
         display(_concat_horizontal(self.visualize_after_unwrap(wrapper, inpainted_rgb, result, R_final, output_size)))
 
-    def visualize_after_postprocess(self, before_postprocess: np.ndarray, after_postprocess: np.ndarray) -> list[np.ndarray]:
-        return [before_postprocess[..., :3], after_postprocess[..., :3]]
+    def visualize_after_postprocess(self, input_arr: np.ndarray, before_postprocess: np.ndarray, after_postprocess: np.ndarray) -> list[np.ndarray]:
+        return [input_arr[..., :3], before_postprocess[..., :3], after_postprocess[..., :3]]
 
-    def on_after_postprocess(self, before_postprocess: np.ndarray, after_postprocess: np.ndarray) -> None:
+    def on_after_postprocess(self, input_arr: np.ndarray, before_postprocess: np.ndarray, after_postprocess: np.ndarray) -> None:
         self.on_log("info", "After Postprocess")
-        print("Final | Postprocessed")
-        display(_concat_horizontal(self.visualize_after_postprocess(before_postprocess, after_postprocess)))
+        print("Input | Final | Postprocessed")
+        display(_concat_horizontal(self.visualize_after_postprocess(input_arr, before_postprocess, after_postprocess)))
 
     def visualize_finished(self, image_arr: np.ndarray, result: np.ndarray, R_final: float, output_size: int) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
         tile_w, tile_h = output_size * 3, output_size * 3

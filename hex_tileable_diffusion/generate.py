@@ -8,7 +8,7 @@ from PIL import Image
 from hex_tileable_diffusion.config import HexTileableDiffusionConfig
 from hex_tileable_diffusion.observer.hexobserver import HexObserver
 from hex_tileable_diffusion.util.image import load_image
-from hex_tileable_diffusion.util.color import low_freq_color_transfer, reinhard_color_transfer
+from hex_tileable_diffusion.util.color import low_freq_color_transfer
 from hex_tileable_diffusion.diffusion.pipeline import HexInpaintPipeline
 from hex_tileable_diffusion.diffusion.finetuning import cleanup_finetune, finetune_pipeline_on_input
 from hex_tileable_diffusion.core.hexwrapper import HexWrapper
@@ -115,18 +115,12 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
         result_pre_pp = result
         if config.postprocess is not None and config.postprocess.use_color_postprocess:
             pc = config.postprocess
-            if pc.color_postprocess_mode == "low_freq":
-                result = low_freq_color_transfer(
-                    result, image_arr,
-                    blur_sigma=pc.color_postprocess_blur_sigma,
-                    strength=pc.color_postprocess_strength,
-                )
-            else:
-                result = reinhard_color_transfer(
-                    result, image_arr,
-                    strength=pc.color_postprocess_strength,
-                )
-        observer.on_after_postprocess(result_pre_pp, result)
+            result = low_freq_color_transfer(
+                result, image_arr,
+                blur_sigma=pc.color_postprocess_blur_sigma,
+                strength=pc.color_postprocess_strength,
+            )
+        observer.on_after_postprocess(image_arr, result_pre_pp, result)
 
         observer.on_log("info", f"Saving final result to {output_path}")
         img = Image.fromarray(result)
@@ -160,7 +154,6 @@ def _simultaneous_inpaint(
     dc = config.diffusion
     gen_W, gen_H = wrapper.gen_W, wrapper.gen_H
     output_path = config.output_path
-    use_lcc = config.postprocess is not None and config.postprocess.use_latent_color_correction
 
     observer.on_log("info", "Starting simultaneous inpaint")
 
@@ -178,7 +171,6 @@ def _simultaneous_inpaint(
         wrapper=wrapper,
         strength=1.0,
         control_image=image_arr,
-        use_latent_color_correction=use_lcc,
         observer=observer,
         output_dir=output_path,
     )
@@ -202,7 +194,6 @@ def _two_pass_inpaint(
     gen_W, gen_H = wrapper.gen_W, wrapper.gen_H
     ext_seed = ext.seed if ext.seed is not None else dc.seed
     output_path = config.output_path
-    use_lcc = config.postprocess is not None and config.postprocess.use_latent_color_correction
 
     # Pass 1: fill gaps, full mask, no rolling, no ControlNet
     observer.on_log("info", "Pass 1: exterior fill (no rolling, no ControlNet)")
@@ -227,7 +218,6 @@ def _two_pass_inpaint(
         seed=ext_seed,
         use_rolling_noise=False,
         use_controlnet=False,
-        use_latent_color_correction=use_lcc,
         observer=observer,
         output_dir=output_path,
     )
@@ -283,7 +273,6 @@ def _two_pass_inpaint(
         gen_size=(gen_W, gen_H),
         wrapper=wrapper,
         control_image=ctrl_composite,
-        use_latent_color_correction=use_lcc,
         observer=observer,
         output_dir=output_path,
     )

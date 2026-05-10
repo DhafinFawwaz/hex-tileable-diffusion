@@ -122,7 +122,6 @@ class HexInpaintPipeline:
         use_rolling_noise: bool | None = None,
         control_image: np.ndarray | None = None,
         use_controlnet: bool = True,
-        use_latent_color_correction: bool = False,
         observer: HexObserver | None = None,
         output_dir: str = ".",
     ) -> np.ndarray:
@@ -158,7 +157,6 @@ class HexInpaintPipeline:
                 else 1.0
             ),
             ip_adapter_image_embeds=self.ip_adapter_embeds,
-            use_latent_color_correction=use_latent_color_correction,
             vae_fp32=dc.vae_fp32,
             observer=observer,
             output_dir=output_dir,
