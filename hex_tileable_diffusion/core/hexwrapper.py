@@ -41,16 +41,12 @@ class HexWrapper:
     gen_size: int
     shift_x: float
     shift_y: float
-    hcx: float
-    hcy: float
     sq_left: int
     sq_top: int
     sq_right: int
     sq_bottom: int
     sq_half_x: float
     sq_half_y: float
-    out_W: int
-    out_H: int
 
     def __init__(
         self,
@@ -137,18 +133,9 @@ class HexWrapper:
         comp_star = _feather(d_inward, _ip, _fw)
         comp_gap = _feather(dist_gap, _gp, _fw)
 
-        # Info for un-offsetting later
-        out_W = int(math.ceil(4 * w_cam))
-        out_H = int(math.ceil(9 * R_cam))
-        hcx, hcy = out_W / 2.0, out_H / 2.0
+        sq_left, sq_top = 0, 0
+        sq_right, sq_bottom = raw_W, raw_H
 
-        sq_left = int(hcx - sq_half_x)
-        sq_top = int(hcy - sq_half_y)
-        sq_right = int(hcx + sq_half_x)
-        sq_bottom = int(hcy + sq_half_y)
-
-        raw_W = sq_right - sq_left
-        raw_H = sq_bottom - sq_top
         gy_r, gx_r = np.mgrid[0:raw_H, 0:raw_W]
         wx_r = gx_r.astype(np.float64) + (shift_x - sq_half_x)
         wy_r = gy_r.astype(np.float64) + (shift_y - sq_half_y)
@@ -184,16 +171,12 @@ class HexWrapper:
         self.gen_size = max(gen_W, gen_H)
         self.shift_x = shift_x
         self.shift_y = shift_y
-        self.hcx = hcx
-        self.hcy = hcy
         self.sq_left = sq_left
         self.sq_top = sq_top
         self.sq_right = sq_right
         self.sq_bottom = sq_bottom
         self.sq_half_x = sq_half_x
         self.sq_half_y = sq_half_y
-        self.out_W = out_W
-        self.out_H = out_H
 
         debug_info = WrapDebugInfo(
             d_inward=d_inward,

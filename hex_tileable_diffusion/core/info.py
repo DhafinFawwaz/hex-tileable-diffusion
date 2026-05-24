@@ -18,16 +18,12 @@ class HexWrapInfo:
     shift_y: float
     x_offset: float
     y_offset: float
-    hcx: float
-    hcy: float
     sq_left: int
     sq_top: int
     sq_right: int
     sq_bottom: int
     sq_half_x: float
     sq_half_y: float
-    out_W: int
-    out_H: int
     horizontal_camera_padding: float
     vertical_camera_padding: float
     

@@ -180,7 +180,7 @@ def roll_tensor_mode(tensor: torch.Tensor, dx: int, dy: int, R: float, roll_mode
         # Outside-phantom positions wrap to inside-phantom positions; reading those
         # from `r` keeps the wrap copies at the same (rolled) alignment as the inside.
         # Passing `original` here makes the inside rolled but the outside un-rolled,
-        # so the UNet sees a per-step offset jump across the phantom hex boundary —
+        # so the UNet sees a per-step offset jump across the phantom hex boundary,
         # which surfaces as small seams along the hex tile edges in the final output.
         r = hex_roll_tensor(tensor, dx, dy, R)
         return hex_copy_fill_tensor(r, R)

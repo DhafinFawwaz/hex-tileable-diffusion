@@ -77,25 +77,26 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
 
     observer.on_log("info", "Diffusion pipeline loaded successfully")
 
+
+    finetune_result = None
+    if config.finetune is not None:
+        observer.on_log("info", "Finetuning pipeline on input image...")
+        finetune_result = finetune_pipeline_on_input(
+            pipe=hex_pipe.pipe,
+            input_image=Image.fromarray(image_arr).convert("RGB"),
+            prompt=config.diffusion.prompt,
+            config=config.finetune,
+            seed=config.diffusion.seed,
+            observer=observer,
+        )
+
     # IP Adapter
     if config.ip_adapter is not None:
         ref_img = Image.fromarray(image_arr).convert("RGB")
         hex_pipe.encode_ip_reference(ref_img, config.diffusion.guidance_scale)
         observer.on_log("info", f"IP-Adapter reference encoded from input (scale={config.ip_adapter.scale})")
 
-    finetune_result = None
     try:
-        if config.finetune is not None:
-            observer.on_log("info", "Finetuning pipeline on input image...")
-            finetune_result = finetune_pipeline_on_input(
-                pipe=hex_pipe.pipe,
-                input_image=Image.fromarray(image_arr).convert("RGB"),
-                prompt=config.diffusion.prompt,
-                config=config.finetune,
-                seed=config.diffusion.seed,
-                observer=observer,
-            )
-
         if config.exterior is not None:
             inner_result = _two_pass_inpaint(hex_pipe, wrapper, rgb_arr, mask_arr, image_arr, config, observer)
         else:
@@ -253,7 +254,7 @@ def _two_pass_inpaint(
     pass2_mask[~hex_interior] = 0
 
     if pass2_mask.max() == 0:
-        observer.on_log("info", "No mask inside hex — skipping pass 2")
+        observer.on_log("info", "No mask inside hex. skipping pass 2")
         return pass1
 
     mask_f = mask_arr.astype(np.float32)[..., np.newaxis] / 255.0

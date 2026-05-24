@@ -89,20 +89,20 @@ class HexInpaintPipeline:
         if self._controlnet_config is not None:
             self.controlnet = load_controlnet(self._controlnet_config, cache_dir=cache_dir)
 
-        ip_cfg = self._ip_adapter_config
-        if ip_cfg is not None:
-            load_ip_adapter(self.pipe, ip_cfg, cache_dir=cache_dir)
-            self.pipe.set_ip_adapter_scale(ip_cfg.scale)
-            self._ip_adapter_model_id = ip_cfg.model_id
-            self._ip_adapter_scale = ip_cfg.scale
-
-
 
     def encode_ip_reference(
         self,
         image: Image.Image,
         guidance_scale: float,
     ) -> None:
+        ip_cfg = self._ip_adapter_config
+        if ip_cfg is None:
+            return
+        if self._ip_adapter_model_id is None:
+            load_ip_adapter(self.pipe, ip_cfg, cache_dir=self._cache_dir)
+            self.pipe.set_ip_adapter_scale(ip_cfg.scale)
+            self._ip_adapter_model_id = ip_cfg.model_id
+            self._ip_adapter_scale = ip_cfg.scale
         do_cfg = guidance_scale > 1.0
         self.ip_adapter_embeds = encode_ip_adapter_image(self.pipe, image, self.device, do_cfg)
 
