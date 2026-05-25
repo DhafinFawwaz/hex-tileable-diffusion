@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from diffusers import DDPMScheduler  # type: ignore[import-not-found]
+from peft import LoraConfig
 from PIL import Image, ImageEnhance
 
 from hex_tileable_diffusion.config import FinetuneConfig
@@ -17,7 +18,6 @@ from hex_tileable_diffusion.observer.hexobserver import HexObserver
 @dataclass
 class FinetuneResult:
     losses: list[float]
-    lora_active: bool
 
 
 def _random_crop(image: Image.Image, crop_size: int, rng: random.Random) -> Image.Image:
@@ -115,23 +115,12 @@ def finetune_pipeline_on_input(
     if te:
         te.requires_grad_(False)
 
-    use_lora = config.use_lora
-    if use_lora:
-        try:
-            from peft import LoraConfig
-            unet.add_adapter(LoraConfig(
-                r=config.lora_rank,
-                lora_alpha=config.lora_alpha,
-                init_lora_weights="gaussian",
-                target_modules=["to_k", "to_q", "to_v", "to_out.0", "proj_in", "proj_out"],
-            ))
-        except ImportError:
-            if observer:
-                observer.on_log("warning", "peft not found → full finetune")
-            use_lora = False
-
-    if not use_lora:
-        unet.requires_grad_(True)
+    unet.add_adapter(LoraConfig(
+        r=config.lora_rank,
+        lora_alpha=config.lora_alpha,
+        init_lora_weights="gaussian",
+        target_modules=["to_k", "to_q", "to_v", "to_out.0", "proj_in", "proj_out"],
+    ))
 
     # AdamW needs fp32 master weights for stable updates.
     for p in unet.parameters():
@@ -141,7 +130,7 @@ def finetune_pipeline_on_input(
     trainable = [p for p in unet.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable, lr=config.lr, weight_decay=1e-4)
     scaler = torch.amp.GradScaler("cuda")  # type: ignore[attr-defined]
-    result = FinetuneResult(losses=[], lora_active=use_lora)
+    result = FinetuneResult(losses=[])
 
     try:
         with torch.no_grad():
@@ -220,7 +209,7 @@ def finetune_pipeline_on_input(
             observer.on_log("info", f"Finetuning completed in {config.steps} steps. Final loss: {result.losses[-1]:.4f}")
         return result
     except Exception:
-        cleanup_finetune(pipe, result, observer)
+        cleanup_finetune(pipe, observer)
         raise
     finally:
         del optimizer, scaler, trainable
@@ -230,28 +219,17 @@ def finetune_pipeline_on_input(
 
 def cleanup_finetune(
     pipe: Any,
-    result: FinetuneResult,
     observer: HexObserver | None = None,
 ) -> None:
     unet = pipe.unet
     unet.eval()
-    if result.lora_active:
-        try:
-            unet.delete_adapters("default")
-            if observer:
-                observer.on_log("info", "LoRA adapters deleted")
-        except Exception as e:
-            if observer:
-                observer.on_log("warning", f"Failed to delete LoRA adapters: {e}")
-    else:
-        for p in unet.parameters():
-            if p.dtype == torch.float32:
-                p.data = p.data.half()
+    try:
+        unet.delete_adapters("default")
         if observer:
-            observer.on_log(
-                "warning",
-                "Full finetune cleanup: base weights were modified — reload pipeline for a clean state",
-            )
+            observer.on_log("info", "LoRA adapters deleted")
+    except Exception as e:
+        if observer:
+            observer.on_log("warning", f"Failed to delete LoRA adapters: {e}")
     unet.requires_grad_(False)
     torch.cuda.empty_cache()
     gc.collect()
