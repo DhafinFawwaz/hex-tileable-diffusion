@@ -140,7 +140,7 @@ def generate_hex_tileable_diffusion_texture(config: HexTileableDiffusionConfig, 
         return result, GenerationInfo(result=result, R_final=R_final, image_arr=image_arr, output_size=output_size)
     finally:
         if finetune_result is not None:
-            cleanup_finetune(hex_pipe.pipe, finetune_result, observer)
+            cleanup_finetune(hex_pipe.pipe, observer)
 
 
 def _simultaneous_inpaint(

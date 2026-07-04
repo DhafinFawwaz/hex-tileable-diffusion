@@ -27,6 +27,13 @@ def load_image(image: ImageInput, output_size: int):
     else:
         raise TypeError(f"Unsupported image type: {type(image)}")
 
+    w, h = image.size
+    if w != h:
+        side = min(w, h)
+        left = (w - side) // 2
+        top = (h - side) // 2
+        image = image.crop((left, top, left + side, top + side))
+
     image = image.resize((output_size, output_size), Image.Resampling.LANCZOS)
     image = np.array(image)
 

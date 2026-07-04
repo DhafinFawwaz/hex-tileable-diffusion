@@ -65,7 +65,6 @@ class FinetuneConfig:
     lr: float = 5e-5 # > 0.0
     crop_size: int | None = None # >= 64
     mask_ratio_range: tuple[float, float] = (0.1, 0.4) # each [0.0, 1.0], first <= second
-    use_lora: bool = True
     lora_rank: int = 8 # >= 1
     lora_alpha: int = 16 # >= 1
     gradient_accumulation_steps: int = 4 # >= 1
