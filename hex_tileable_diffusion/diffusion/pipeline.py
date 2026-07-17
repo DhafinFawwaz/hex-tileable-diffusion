@@ -106,6 +106,45 @@ class HexInpaintPipeline:
         do_cfg = guidance_scale > 1.0
         self.ip_adapter_embeds = encode_ip_adapter_image(self.pipe, image, self.device, do_cfg)
 
+    def inpaint_builtin(
+        self,
+        source_image: np.ndarray,
+        mask_image: np.ndarray,
+        prompt: str,
+        negative_prompt: str,
+        *,
+        gen_size: tuple[int, int],
+        num_inference_steps: int,
+        guidance_scale: float,
+        strength: float,
+        seed: int,
+        ip_reference_image: Image.Image | None = None,
+    ) -> np.ndarray:
+        gen_W, gen_H = gen_size
+        src = Image.fromarray(source_image)
+        msk = Image.fromarray(mask_image, mode="L")
+        gen = torch.Generator(device="cuda").manual_seed(seed)
+
+        kwargs: dict[str, Any] = {}
+        if ip_reference_image is not None and self._ip_adapter_model_id is not None:
+            kwargs["ip_adapter_image"] = ip_reference_image
+
+        out = self.pipe(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            image=src,
+            mask_image=msk,
+            width=gen_W,
+            height=gen_H,
+            strength=strength,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+            generator=gen,
+            output_type="pil",
+            **kwargs,
+        ).images[0]
+        return np.array(out)
+
     def inpaint(
         self,
         source_image: np.ndarray,

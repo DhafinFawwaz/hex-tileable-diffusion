@@ -30,6 +30,7 @@ class Metrics:
         self._textile: Textile | None = None
         self._lpips_net: lpips.LPIPS | None = None
         self._incept: InceptionV3 | None = None
+        self._dists = None  # piq.DISTS (lazy)
 
     def textile(self, gen) -> float:
         if self._textile is None:
@@ -53,6 +54,13 @@ class Metrics:
     def ssim(self, ref: torch.Tensor, gen: torch.Tensor) -> float:
         # piq.ssim expects [0,1] tensors
         return float(piq.ssim(ref, gen, data_range=1.0))
+
+    def dists(self, ref: torch.Tensor, gen: torch.Tensor) -> float:
+        if self._dists is None:
+            self._dists = piq.DISTS(reduction="mean").to(self.device).eval()
+        r, g = ref.to(self.device), gen.to(self.device)
+        with torch.no_grad():
+            return float(self._dists(r, g).item())
 
     def lpips(self, ref: torch.Tensor, gen: torch.Tensor) -> float:
         if self._lpips_net is None:

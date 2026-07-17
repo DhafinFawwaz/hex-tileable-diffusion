@@ -35,6 +35,7 @@ class HexEvaluation:
     ssim_score: float
     lpips_score: float
     si_fid_score: float
+    dists_score: float
     textile_score: float
 
     def __init__(
@@ -69,6 +70,10 @@ class HexEvaluation:
         if observer is not None: observer.on_log("info", "Calculating SI-FID Score...")
         self.si_fid_score = m.si_fid(ref_t, gen_t)
         if observer is not None: observer.on_log("info", f"SI-FID = {self.si_fid_score:.6f}")
+
+        if observer is not None: observer.on_log("info", "Calculating DISTS Score...")
+        self.dists_score = m.dists(ref_t, gen_t)
+        if observer is not None: observer.on_log("info", f"DISTS = {self.dists_score:.6f}")
 
         if observer is not None: observer.on_log("info", "Calculating Textile Score...")
         self.textile_score = m.textile(tex_gen)

@@ -4,7 +4,7 @@ from pathlib import Path
 from .types import ControlNetModelId, IPAdapterModelId, IPAdapterWeightName, InpaintModelId, RollMode, SchedulerType, VaeModelId, ImageInput
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class HexWrapperConfig:
 
     output_size: int = 512 # >= 64
@@ -19,7 +19,7 @@ class HexWrapperConfig:
     y_offset: float = 0.5 # [-1.0, 1.0]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class DiffusionConfig:
 
     model_id: InpaintModelId | str = "runwayml/stable-diffusion-inpainting"
@@ -51,7 +51,7 @@ class IPAdapterConfig:
 
     model_id: IPAdapterModelId | str
     subfolder: str = "models"
-    weight_name: IPAdapterWeightName | str = "ip-adapter_sd15.bin"
+    weight_name: IPAdapterWeightName | str = "ip-adapter-plus_sd15.bin"
     scale: float = 0.85 # >= 0.0 (but recommended <= 1.5)
     reference_image_path: str | Path | None = None
     use_pass1_reference_for_pass2: bool = False
@@ -74,13 +74,14 @@ class FinetuneConfig:
     log_interval: int = 50 # >= 1
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class ExteriorPassConfig:
 
     strength: float = 1.0 # [0.0, 1.0]
     steps: int = 30 # >= 1
     guidance_scale: float = 3.0 # >= 1.0
     seed: int | None = None
+    scheduled: bool = True
 
 
 @dataclass(frozen=True)
@@ -90,7 +91,7 @@ class PostprocessConfig:
     color_postprocess_blur_sigma: float = 32.0 # > 0.0
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class VisualizationConfig:
 
     hex_outline_thickness: int = 3 # >= 1
@@ -98,7 +99,7 @@ class VisualizationConfig:
     in_between_preview_count: int = 3 # >= 0
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class HexTileableDiffusionConfig:
 
     image_path: ImageInput
@@ -113,3 +114,18 @@ class HexTileableDiffusionConfig:
     exterior: ExteriorPassConfig | None = None
     postprocess: PostprocessConfig | None = None
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
+
+    def deep_copy(self) -> "HexTileableDiffusionConfig":
+        return HexTileableDiffusionConfig(
+            image_path=self.image_path,
+            output_path=self.output_path,
+            cache_dir=self.cache_dir,
+            wrapper=HexWrapperConfig(**self.wrapper.__dict__),
+            diffusion=DiffusionConfig(**self.diffusion.__dict__),
+            controlnet=ControlNetConfig(**self.controlnet.__dict__) if self.controlnet is not None else None,
+            ip_adapter=IPAdapterConfig(**self.ip_adapter.__dict__) if self.ip_adapter is not None else None,
+            finetune=FinetuneConfig(**self.finetune.__dict__) if self.finetune is not None else None,
+            exterior=ExteriorPassConfig(**self.exterior.__dict__) if self.exterior is not None else None,
+            postprocess=PostprocessConfig(**self.postprocess.__dict__) if self.postprocess is not None else None,
+            visualization=VisualizationConfig(**self.visualization.__dict__),
+        )

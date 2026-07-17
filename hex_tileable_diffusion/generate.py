@@ -196,36 +196,59 @@ def _two_pass_inpaint(
     ext_seed = ext.seed if ext.seed is not None else dc.seed
     output_path = config.output_path
 
-    # Pass 1: fill gaps, full mask, no rolling, no ControlNet
-    observer.on_log("info", "Pass 1: exterior fill (no rolling, no ControlNet)")
+    # Pass 1: fill the gaps, no rolling, no ControlNet. Either through the
+    # custom scheduled denoising loop (ext.scheduled=True) or the stock
+    # diffusers inpaint call with the raw input as IP reference.
     observer.show_denoise_steps = False
 
-    # Temporarily disable IP Adapter for pass 1 if configured
-    saved_ip_embeds = None
-    if config.ip_adapter is not None and not config.ip_adapter.use_on_pass1:
-        saved_ip_embeds = hex_pipe.ip_adapter_embeds
-        hex_pipe.ip_adapter_embeds = None
+    if ext.scheduled:
+        observer.on_log("info", "Pass 1: exterior fill (scheduled loop, no rolling, no ControlNet)")
 
-    pass1 = hex_pipe.inpaint(
-        source_image=rgb_arr,
-        mask_image=mask_arr,
-        prompt=dc.prompt,
-        negative_prompt=dc.negative_prompt,
-        gen_size=(gen_W, gen_H),
-        wrapper=wrapper,
-        num_inference_steps=ext.steps,
-        guidance_scale=ext.guidance_scale,
-        strength=ext.strength,
-        seed=ext_seed,
-        use_rolling_noise=False,
-        use_controlnet=False,
-        observer=observer,
-        output_dir=output_path,
-    )
+        # Temporarily disable IP Adapter for pass 1 if configured
+        saved_ip_embeds = None
+        if config.ip_adapter is not None and not config.ip_adapter.use_on_pass1:
+            saved_ip_embeds = hex_pipe.ip_adapter_embeds
+            hex_pipe.ip_adapter_embeds = None
 
-    # Restore IP Adapter embeds
-    if saved_ip_embeds is not None:
-        hex_pipe.ip_adapter_embeds = saved_ip_embeds
+        pass1 = hex_pipe.inpaint(
+            source_image=rgb_arr,
+            mask_image=mask_arr,
+            prompt=dc.prompt,
+            negative_prompt=dc.negative_prompt,
+            gen_size=(gen_W, gen_H),
+            wrapper=wrapper,
+            num_inference_steps=ext.steps,
+            guidance_scale=ext.guidance_scale,
+            strength=ext.strength,
+            seed=ext_seed,
+            use_rolling_noise=False,
+            use_controlnet=False,
+            observer=observer,
+            output_dir=output_path,
+        )
+
+        # Restore IP Adapter embeds
+        if saved_ip_embeds is not None:
+            hex_pipe.ip_adapter_embeds = saved_ip_embeds
+    else:
+        observer.on_log("info", "Pass 1: exterior fill (built-in inpaint, no rolling, no ControlNet)")
+
+        ip_ref = None
+        if config.ip_adapter is not None and config.ip_adapter.use_on_pass1:
+            ip_ref = Image.fromarray(image_arr).convert("RGB")
+
+        pass1 = hex_pipe.inpaint_builtin(
+            source_image=rgb_arr,
+            mask_image=mask_arr,
+            prompt=dc.prompt,
+            negative_prompt=dc.negative_prompt,
+            gen_size=(gen_W, gen_H),
+            num_inference_steps=ext.steps,
+            guidance_scale=ext.guidance_scale,
+            strength=ext.strength,
+            seed=ext_seed,
+            ip_reference_image=ip_ref,
+        )
 
     observer.show_denoise_steps = True
     observer.on_log("info", "Pass 1 completed")
@@ -245,10 +268,11 @@ def _two_pass_inpaint(
     R_pixel = wrapper.R_cam * lat_scale
 
     _gy, _gx = np.mgrid[0:gen_H, 0:gen_W]
+    # +16px margin to keeps clip frozen latent cells outside the latent
     hex_interior = _in_origin_hex(
         _gx.astype(np.float64) - gen_W / 2.0,
         _gy.astype(np.float64) - gen_H / 2.0,
-        R_pixel,
+        R_pixel + 16.0,
     )
     pass2_mask = mask_arr.copy()
     pass2_mask[~hex_interior] = 0
