@@ -85,7 +85,7 @@ class Metrics:
         mu1, mu2 = f1.mean(0), f2.mean(0)
         s1, s2 = np.cov(f1, rowvar=False), np.cov(f2, rowvar=False)
         reg = eps * np.eye(s1.shape[0])
-        covmean = linalg.sqrtm((s1 + reg) @ (s2 + reg), disp=False)[0]
+        covmean = linalg.sqrtm((s1 + reg) @ (s2 + reg))
         if np.iscomplexobj(covmean): covmean = covmean.real
         diff = mu1 - mu2
         return float(diff @ diff + np.trace(s1) + np.trace(s2) - 2 * np.trace(covmean))
